@@ -49,6 +49,10 @@
 #include <spirv/unified1/spirv.hpp11>
 #include <xxhash.h>
 
+extern "C" {
+#include "libavcodec/texturedsp.h"
+}
+
 #include <rex/logging.h>
 #include <rex/cvar.h>
 #include <rex/chrono/clock.h>
@@ -16612,9 +16616,216 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
       vulkan_device->physical_device(), format, &format_properties);
   constexpr VkFormatFeatureFlags kRequiredTextureFeatures =
       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+
+  std::vector<uint8_t> rgba8_payload;
+  std::vector<NativeTextureResource::MipLevel> rgba8_mip_levels;
+  const std::vector<uint8_t>* upload_payload = &texture->payload;
+  const std::vector<NativeTextureResource::MipLevel>* upload_mip_levels = &texture->mip_levels;
+
   if ((format_properties.optimalTilingFeatures & kRequiredTextureFeatures) !=
       kRequiredTextureFeatures) {
-    return reject("format-capabilities");
+    if (texture->gpu_produced) {
+      return reject("format-capabilities");
+    }
+
+    size_t block_size = 0;
+    TextureDSPContext texture_dsp{};
+    int (*decode_block)(uint8_t*, ptrdiff_t, const uint8_t*) = nullptr;
+    switch (texture->info.format) {
+      case xenos::TextureFormat::k_DXT1:
+        block_size = 8;
+        break;
+      case xenos::TextureFormat::k_DXT2_3:
+      case xenos::TextureFormat::k_DXT3A:
+        block_size = 16;
+        break;
+      case xenos::TextureFormat::k_DXT4_5:
+        block_size = 16;
+        break;
+      default:
+        return reject("format-capabilities");
+    }
+
+    ff_texturedsp_init(&texture_dsp);
+    switch (texture->info.format) {
+      case xenos::TextureFormat::k_DXT1:
+        decode_block = texture_dsp.dxt1a_block;
+        break;
+      case xenos::TextureFormat::k_DXT2_3:
+      case xenos::TextureFormat::k_DXT3A:
+        decode_block = texture_dsp.dxt3_block;
+        break;
+      case xenos::TextureFormat::k_DXT4_5:
+        decode_block = texture_dsp.dxt5_block;
+        break;
+      default:
+        return reject("format-capabilities");
+    }
+    if (!decode_block) {
+      return reject("rgba8-fallback-decode");
+    }
+
+    format = VK_FORMAT_R8G8B8A8_UNORM;
+    vulkan_device->vulkan_instance()->functions().vkGetPhysicalDeviceFormatProperties(
+        vulkan_device->physical_device(), format, &format_properties);
+    if ((format_properties.optimalTilingFeatures & kRequiredTextureFeatures) !=
+        kRequiredTextureFeatures) {
+      return reject("rgba8-fallback-format-capabilities");
+    }
+
+    auto checked_add = [](size_t a, size_t b, size_t* result) {
+      if (b > std::numeric_limits<size_t>::max() - a) {
+        return false;
+      }
+      *result = a + b;
+      return true;
+    };
+    auto checked_mul = [](size_t a, size_t b, size_t* result) {
+      if (a && b > std::numeric_limits<size_t>::max() / a) {
+        return false;
+      }
+      *result = a * b;
+      return true;
+    };
+
+    for (const NativeTextureResource::MipLevel& mip : texture->mip_levels) {
+      if (!mip.width || !mip.height || !mip.depth || !mip.layer_count ||
+          mip.payload_offset > texture->payload.size() ||
+          mip.payload_size > texture->payload.size() - mip.payload_offset) {
+        return reject("rgba8-fallback-payload-bounds");
+      }
+
+      const uint64_t row_length =
+          mip.buffer_row_length ? uint64_t(mip.buffer_row_length) : uint64_t(mip.width);
+      const uint64_t image_height =
+          mip.buffer_image_height ? uint64_t(mip.buffer_image_height) : uint64_t(mip.height);
+      if (row_length < mip.width || image_height < mip.height) {
+        return reject("rgba8-fallback-payload-bounds");
+      }
+
+      const uint64_t blocks_w = (row_length + 3) / 4;
+      const uint64_t blocks_h = (image_height + 3) / 4;
+      const uint64_t visible_blocks_w = (uint64_t(mip.width) + 3) / 4;
+      const uint64_t visible_blocks_h = (uint64_t(mip.height) + 3) / 4;
+      if (!blocks_w || !blocks_h || visible_blocks_w > blocks_w ||
+          visible_blocks_h > blocks_h ||
+          blocks_w > std::numeric_limits<size_t>::max() ||
+          blocks_h > std::numeric_limits<size_t>::max()) {
+        return reject("rgba8-fallback-payload-bounds");
+      }
+
+      size_t row_bytes = 0;
+      size_t slice_bytes = 0;
+      size_t source_slices = 0;
+      size_t required_source_bytes = 0;
+      if (!checked_mul(static_cast<size_t>(blocks_w), block_size, &row_bytes) ||
+          !checked_mul(row_bytes, static_cast<size_t>(blocks_h), &slice_bytes) ||
+          !checked_mul(static_cast<size_t>(mip.depth),
+                       static_cast<size_t>(mip.layer_count), &source_slices) ||
+          !checked_mul(slice_bytes, source_slices, &required_source_bytes) ||
+          required_source_bytes > mip.payload_size) {
+        return reject("rgba8-fallback-payload-bounds");
+      }
+
+      size_t decoded_row_bytes = 0;
+      size_t decoded_slice_bytes = 0;
+      size_t decoded_subresource_bytes = 0;
+      if (!checked_mul(static_cast<size_t>(mip.width), size_t(4), &decoded_row_bytes) ||
+          !checked_mul(decoded_row_bytes, static_cast<size_t>(mip.height),
+                       &decoded_slice_bytes) ||
+          !checked_mul(decoded_slice_bytes, source_slices, &decoded_subresource_bytes) ||
+          decoded_subresource_bytes > kMaximumResourcePayloadSize ||
+          rgba8_payload.size() >
+              kMaximumResourcePayloadSize - decoded_subresource_bytes) {
+        return reject("rgba8-fallback-payload-too-large");
+      }
+
+      const size_t decoded_payload_offset = rgba8_payload.size();
+      rgba8_payload.resize(decoded_payload_offset + decoded_subresource_bytes);
+
+      NativeTextureResource::MipLevel decoded_mip = mip;
+      decoded_mip.buffer_row_length = mip.width;
+      decoded_mip.buffer_image_height = mip.height;
+      decoded_mip.payload_offset = decoded_payload_offset;
+      decoded_mip.payload_size = decoded_subresource_bytes;
+      rgba8_mip_levels.push_back(decoded_mip);
+
+      for (uint32_t layer = 0; layer < mip.layer_count; ++layer) {
+        for (uint32_t z = 0; z < mip.depth; ++z) {
+          const size_t slice_index =
+              static_cast<size_t>(layer) * static_cast<size_t>(mip.depth) +
+              static_cast<size_t>(z);
+          size_t source_slice_offset = 0;
+          size_t destination_slice_offset = 0;
+          if (!checked_mul(slice_index, slice_bytes, &source_slice_offset) ||
+              !checked_mul(slice_index, decoded_slice_bytes, &destination_slice_offset) ||
+              !checked_add(mip.payload_offset, source_slice_offset, &source_slice_offset) ||
+              !checked_add(decoded_payload_offset, destination_slice_offset,
+                           &destination_slice_offset)) {
+            return reject("rgba8-fallback-payload-bounds");
+          }
+
+          for (uint32_t block_y = 0; block_y < visible_blocks_h; ++block_y) {
+            for (uint32_t block_x = 0; block_x < visible_blocks_w; ++block_x) {
+              size_t source_block_offset = source_slice_offset;
+              size_t source_row_offset = 0;
+              size_t source_x_offset = 0;
+              if (!checked_mul(static_cast<size_t>(block_y), row_bytes,
+                               &source_row_offset) ||
+                  !checked_mul(static_cast<size_t>(block_x), block_size,
+                               &source_x_offset) ||
+                  !checked_add(source_block_offset, source_row_offset,
+                               &source_block_offset) ||
+                  !checked_add(source_block_offset, source_x_offset,
+                               &source_block_offset)) {
+                return reject("rgba8-fallback-payload-bounds");
+              }
+
+              size_t source_block_end = 0;
+              size_t mip_payload_end = 0;
+              if (!checked_add(mip.payload_offset, mip.payload_size, &mip_payload_end) ||
+                  !checked_add(source_block_offset, block_size, &source_block_end) ||
+                  source_block_offset < mip.payload_offset ||
+                  source_block_end > mip_payload_end ||
+                  source_block_end > texture->payload.size()) {
+                return reject("rgba8-fallback-payload-bounds");
+              }
+
+              uint8_t decoded_block[4 * 4 * 4];
+              if (decode_block(decoded_block, 4 * 4,
+                               texture->payload.data() + source_block_offset) != 0) {
+                return reject("rgba8-fallback-decode");
+              }
+
+              const size_t texel_x = static_cast<size_t>(block_x) * 4;
+              const size_t texel_y = static_cast<size_t>(block_y) * 4;
+              const uint32_t copy_width =
+                  std::min(uint32_t(4), mip.width - static_cast<uint32_t>(texel_x));
+              const uint32_t copy_height =
+                  std::min(uint32_t(4), mip.height - static_cast<uint32_t>(texel_y));
+              for (uint32_t row = 0; row < copy_height; ++row) {
+                size_t destination_row_offset = 0;
+                size_t destination_offset = 0;
+                if (!checked_mul(texel_y + row, decoded_row_bytes,
+                                 &destination_row_offset) ||
+                    !checked_mul(texel_x, size_t(4), &destination_offset) ||
+                    !checked_add(destination_row_offset, destination_offset,
+                                 &destination_offset) ||
+                    !checked_add(destination_slice_offset, destination_offset,
+                                 &destination_offset)) {
+                  return reject("rgba8-fallback-payload-bounds");
+                }
+                std::memcpy(rgba8_payload.data() + destination_offset,
+                            decoded_block + row * 4 * 4, size_t(copy_width) * 4);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    upload_payload = &rgba8_payload;
+    upload_mip_levels = &rgba8_mip_levels;
   }
 
   auto image = std::make_unique<NativeTextureImage>();
@@ -16801,11 +17012,11 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
 
   if (!texture->gpu_produced) {
     NativeUploadAllocation upload;
-    if (!AllocateUpload(texture->payload.size(), 16, upload, NativeUploadKind::kTexture)) {
+    if (!AllocateUpload(upload_payload->size(), 16, upload, NativeUploadKind::kTexture)) {
       DestroyNativeTextureImage(*image);
       return reject("upload-allocation");
     }
-    std::memcpy(upload.mapping, texture->payload.data(), texture->payload.size());
+    std::memcpy(upload.mapping, upload_payload->data(), upload_payload->size());
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -16821,8 +17032,8 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
                              &barrier); });
 
     std::vector<VkBufferImageCopy> copies;
-    copies.reserve(texture->mip_levels.size());
-    for (const NativeTextureResource::MipLevel& mip : texture->mip_levels) {
+    copies.reserve(upload_mip_levels->size());
+    for (const NativeTextureResource::MipLevel& mip : *upload_mip_levels) {
       VkBufferImageCopy copy{};
       copy.bufferOffset = upload.offset + mip.payload_offset;
       copy.bufferRowLength = mip.buffer_row_length;
