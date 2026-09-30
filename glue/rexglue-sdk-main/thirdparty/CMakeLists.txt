@@ -621,6 +621,7 @@ add_library(libavcodec STATIC
     ${FFMPEG_DIR}/libavcodec/profiles.c
     ${FFMPEG_DIR}/libavcodec/qsv_api.c
     ${FFMPEG_DIR}/libavcodec/raw.c
+    ${FFMPEG_DIR}/libavcodec/texturedsp.c
     ${FFMPEG_DIR}/libavcodec/utils.c
     ${FFMPEG_DIR}/libavcodec/vorbis_parser.c
     ${FFMPEG_DIR}/libavcodec/xiph.c

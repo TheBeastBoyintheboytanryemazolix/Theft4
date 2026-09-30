@@ -61,7 +61,7 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
       - name: Install build tools
-        run: brew install cmake ninja pkg-config llvm openssl@3 vulkan-loader
+        run: brew install cmake ninja pkg-config llvm openssl@3 vulkan-loader spirv-tools
 
       - name: Show toolchain versions
         run: |

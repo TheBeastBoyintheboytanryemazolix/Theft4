@@ -46,8 +46,8 @@
 #ifdef THEFT4_LAB_BUILD
 #include "native_command_recycler.h"
 #include "native_producer_binding_cache.h"
-#include "native_worker_batch.h"
 #endif
+#include "native_worker_batch.h"
 #include "native_prepared_bindings.h"
 #include "native_image_reuse.h"
 #include "native_inline_bytes.h"
