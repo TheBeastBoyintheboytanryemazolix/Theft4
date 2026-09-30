@@ -16689,7 +16689,7 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
     };
 
     for (const NativeTextureResource::MipLevel& mip : texture->mip_levels) {
-      if (!mip.width || !mip.height || !mip.depth || !mip.layer_count ||
+      if (!mip.width || !mip.height || !mip.depth || mip.layer_count != 1 ||
           mip.payload_offset > texture->payload.size() ||
           mip.payload_size > texture->payload.size() - mip.payload_offset) {
         return reject("rgba8-fallback-payload-bounds");
@@ -16709,6 +16709,8 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
       const uint64_t visible_blocks_h = (uint64_t(mip.height) + 3) / 4;
       if (!blocks_w || !blocks_h || visible_blocks_w > blocks_w ||
           visible_blocks_h > blocks_h ||
+          visible_blocks_w > std::numeric_limits<uint32_t>::max() ||
+          visible_blocks_h > std::numeric_limits<uint32_t>::max() ||
           blocks_w > std::numeric_limits<size_t>::max() ||
           blocks_h > std::numeric_limits<size_t>::max()) {
         return reject("rgba8-fallback-payload-bounds");
@@ -16716,12 +16718,10 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
 
       size_t row_bytes = 0;
       size_t slice_bytes = 0;
-      size_t source_slices = 0;
+      const size_t source_slices = static_cast<size_t>(mip.depth);
       size_t required_source_bytes = 0;
       if (!checked_mul(static_cast<size_t>(blocks_w), block_size, &row_bytes) ||
           !checked_mul(row_bytes, static_cast<size_t>(blocks_h), &slice_bytes) ||
-          !checked_mul(static_cast<size_t>(mip.depth),
-                       static_cast<size_t>(mip.layer_count), &source_slices) ||
           !checked_mul(slice_bytes, source_slices, &required_source_bytes) ||
           required_source_bytes > mip.payload_size) {
         return reject("rgba8-fallback-payload-bounds");
@@ -16750,11 +16750,8 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
       decoded_mip.payload_size = decoded_subresource_bytes;
       rgba8_mip_levels.push_back(decoded_mip);
 
-      for (uint32_t layer = 0; layer < mip.layer_count; ++layer) {
-        for (uint32_t z = 0; z < mip.depth; ++z) {
-          const size_t slice_index =
-              static_cast<size_t>(layer) * static_cast<size_t>(mip.depth) +
-              static_cast<size_t>(z);
+      for (uint32_t z = 0; z < mip.depth; ++z) {
+          const size_t slice_index = static_cast<size_t>(z);
           size_t source_slice_offset = 0;
           size_t destination_slice_offset = 0;
           if (!checked_mul(slice_index, slice_bytes, &source_slice_offset) ||
@@ -16767,6 +16764,13 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
 
           for (uint32_t block_y = 0; block_y < visible_blocks_h; ++block_y) {
             for (uint32_t block_x = 0; block_x < visible_blocks_w; ++block_x) {
+              const uint64_t texel_x_u64 = uint64_t(block_x) * 4;
+              const uint64_t texel_y_u64 = uint64_t(block_y) * 4;
+              if (texel_x_u64 >= mip.width || texel_y_u64 >= mip.height) {
+                return reject("rgba8-fallback-payload-bounds");
+              }
+              const uint32_t texel_x = static_cast<uint32_t>(texel_x_u64);
+              const uint32_t texel_y = static_cast<uint32_t>(texel_y_u64);
               size_t source_block_offset = source_slice_offset;
               size_t source_row_offset = 0;
               size_t source_x_offset = 0;
@@ -16797,18 +16801,15 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
                 return reject("rgba8-fallback-decode");
               }
 
-              const size_t texel_x = static_cast<size_t>(block_x) * 4;
-              const size_t texel_y = static_cast<size_t>(block_y) * 4;
-              const uint32_t copy_width =
-                  std::min(uint32_t(4), mip.width - static_cast<uint32_t>(texel_x));
-              const uint32_t copy_height =
-                  std::min(uint32_t(4), mip.height - static_cast<uint32_t>(texel_y));
+              const uint32_t copy_width = std::min(uint32_t(4), mip.width - texel_x);
+              const uint32_t copy_height = std::min(uint32_t(4), mip.height - texel_y);
               for (uint32_t row = 0; row < copy_height; ++row) {
                 size_t destination_row_offset = 0;
                 size_t destination_offset = 0;
-                if (!checked_mul(texel_y + row, decoded_row_bytes,
+                if (!checked_mul(static_cast<size_t>(texel_y) + row, decoded_row_bytes,
                                  &destination_row_offset) ||
-                    !checked_mul(texel_x, size_t(4), &destination_offset) ||
+                    !checked_mul(static_cast<size_t>(texel_x), size_t(4),
+                                 &destination_offset) ||
                     !checked_add(destination_row_offset, destination_offset,
                                  &destination_offset) ||
                     !checked_add(destination_slice_offset, destination_offset,
