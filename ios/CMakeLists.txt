@@ -199,16 +199,6 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             xxHash::xxhash
             libavcodec
             libavutil)
-        # FFmpeg's TextureDSP block decoders are used by the CPU BC1/2/3
-        # fallback in graphics_system.cpp. The vendored FFmpeg build does not
-        # always include this helper in libavcodec's source set, so make the
-        # dependency explicit for the native iOS renderer target.
-        if(TARGET libavcodec)
-            target_sources(libavcodec PRIVATE
-                "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/FFmpeg/libavcodec/texturedsp.c")
-        else()
-            message(FATAL_ERROR "libavcodec target is required for the GTA4 native BC fallback")
-        endif()
         target_compile_definitions(theft4_gta4_native_compile PRIVATE
             REX_HAS_VULKAN=1
             REXGLUE_BUILD_CONFIG="$<CONFIG>"
