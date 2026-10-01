@@ -16822,7 +16822,6 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
           }
         }
       }
-    }
 
     upload_payload = &rgba8_payload;
     upload_mip_levels = &rgba8_mip_levels;
