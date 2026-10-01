@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           BUILD_DIR="out/build/ios-device-release"
-          APP_PATH="$(find "$BUILD_DIR" -type d -path "*/Release-iphoneos/Theft4.app" -print -quit)"
+          APP_PATH="$(find "$BUILD_DIR" -type d -name "Theft4.app" -print -quit)"
 
           if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
             echo "::error::Theft4.app was not produced"
