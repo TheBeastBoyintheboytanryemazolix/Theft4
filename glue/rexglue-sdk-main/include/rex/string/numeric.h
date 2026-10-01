@@ -12,6 +12,7 @@
 
 #include <charconv>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -133,6 +134,23 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     }
     std::memcpy(&result, &pun, sizeof(PUN));
   } else {
+#if defined(__APPLE__)
+    // Apple libc++ only exposes floating-point from_chars at iOS 26.0.
+    // Theft4 still supports older iOS deployment targets, so use the C
+    // floating parser on Apple platforms while keeping from_chars elsewhere.
+    std::string text(range);
+    char* parsed_end = nullptr;
+    errno = 0;
+    if constexpr (std::is_same_v<T, float>) {
+      result = std::strtof(text.c_str(), &parsed_end);
+    } else {
+      result = std::strtod(text.c_str(), &parsed_end);
+    }
+    if (errno != 0 || parsed_end == text.c_str()) {
+      assert_always();
+      return T();
+    }
+#else
     auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result,
                                       std::chars_format::general);
     // TODO(gibbed): do something more with errors?
@@ -140,6 +158,7 @@ inline T fpfs(const std::string_view value, bool force_hex) {
       assert_always();
       return T();
     }
+#endif
     if (is_negative) {
       result = -result;
     }
