@@ -358,6 +358,25 @@ if(THEFT4_ENABLE_GAME_STARTUP)
     # all real exports, including ones found later by guest ordinal lookup.
     target_link_options(theft4_core_bridge INTERFACE "LINKER:-force_load,$<TARGET_FILE:rexruntime>")
 
+    # CI builds the vendored MoltenVK static XCFramework directly when no
+    # external XeniOS build directory is available.
+    set(THEFT4_MOLTENVK_IOS_LIB_DIR "" CACHE PATH
+        "Optional directory containing the device libMoltenVK.a")
+    if(EXISTS "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
+        target_link_libraries(theft4_core_bridge PRIVATE
+            "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a"
+            "-framework Metal"
+            "-framework Foundation"
+            "-framework CoreFoundation"
+            "-framework CoreGraphics"
+            "-framework IOSurface")
+        target_link_options(theft4_core_bridge INTERFACE
+            "LINKER:-force_load,${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
+        target_compile_definitions(theft4_core_bridge PRIVATE
+            REX_HAS_VULKAN=1
+            THEFT4_HAS_MOLTENVK_PROBE=1)
+    endif()
+
     # XeniOS is kept as an independent reference app, but its locally built,
     # public MoltenVK archive gives us a fast device capability gate before the
     # full LibertyRecomp Vulkan source closure is enabled for iOS. No XeniOS
