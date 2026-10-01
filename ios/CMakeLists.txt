@@ -389,11 +389,11 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         CACHE PATH "Optional XeniOS generated shader directory for direct resolve experiments")
     option(THEFT4_ENABLE_XENIOS_DIRECT_RESOLVE
            "Build the experimental XeniOS-derived direct host resolve path" OFF)
+    target_sources(theft4_core_bridge PRIVATE
+        bridge/theft4_vulkan_probe.cpp
+        bridge/theft4_rex_vulkan_gate.cpp)
     if(EXISTS "${THEFT4_XENIOS_IOS_LIB_DIR}/libMoltenVK.a")
-        target_sources(theft4_core_bridge PRIVATE
-            bridge/theft4_vulkan_probe.cpp
-            bridge/theft4_rex_vulkan_gate.cpp)
-        target_include_directories(theft4_core_bridge PRIVATE
+            target_include_directories(theft4_core_bridge PRIVATE
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/glslang"
