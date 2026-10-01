@@ -3054,7 +3054,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
 
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+      REXCVAR_QUERY(bool, vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
     render_pass =
@@ -3529,7 +3529,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {};
   VkFormat color_attachment_formats[xenos::kMaxColorRenderTargets] = {};
   bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+      REXCVAR_QUERY(bool, vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
   if (use_dynamic_rendering) {
     pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipeline_rendering_create_info.pNext = nullptr;
