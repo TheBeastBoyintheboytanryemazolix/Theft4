@@ -5010,7 +5010,7 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
   const VkDevice device = vulkan_device->device();
   const ui::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
   bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && device_properties.dynamicRendering;
+      REXCVAR_QUERY(bool, vulkan_dynamic_rendering) && device_properties.dynamicRendering;
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
