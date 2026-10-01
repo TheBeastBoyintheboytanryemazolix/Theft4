@@ -1003,7 +1003,7 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
   if (!device_properties.geometryShader) {
-    if (REXCVAR_GET(vulkan_require_geometry_shader)) {
+    if (REXCVAR_QUERY(bool, vulkan_require_geometry_shader)) {
       REXGPU_ERROR(
           "Vulkan geometryShader is required for GPU emulation "
           "(vulkan_require_geometry_shader=true), but unsupported by the "
@@ -1015,7 +1015,7 @@ bool VulkanCommandProcessor::SetupContext() {
         "fallback conversion/expansion paths will be used");
   }
   if (!device_properties.fillModeNonSolid) {
-    if (REXCVAR_GET(vulkan_require_fill_mode_non_solid)) {
+    if (REXCVAR_QUERY(bool, vulkan_require_fill_mode_non_solid)) {
       REXGPU_ERROR(
           "Vulkan fillModeNonSolid is required for GPU emulation "
           "(vulkan_require_fill_mode_non_solid=true), but unsupported by the "
@@ -3556,7 +3556,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     rendering_info.pStencilAttachment = has_stencil ? &stencil_attachment : nullptr;
     const bool tighten_render_area =
         REXCVAR_GET(vulkan_tight_render_area) &&
-        !REXCVAR_GET(vulkan_transfer_in_draw_pass);
+        !REXCVAR_QUERY(bool, vulkan_transfer_in_draw_pass);
     const size_t begin_index =
         deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
     if (tighten_render_area) {
