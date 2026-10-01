@@ -54,6 +54,13 @@ jobs:
       - name: Prepare pinned dependencies and patches
         run: python3 tools/setup_repo.py
 
+      - name: Build vendored MoltenVK for iOS
+        run: |
+          set -euo pipefail
+          cd thirdparty/MoltenVK/MoltenVK
+          ./fetchDependencies --ios
+          make ios
+
       - name: Configure iOS Device Release
         run: |
           cmake --preset ios-device-release \
@@ -61,7 +68,8 @@ jobs:
             -DTHEFT4_ENABLE_GAME_STARTUP=ON \
             -DTHEFT4_ENABLE_GTA4_NATIVE_BACKEND=ON \
             -DREXGLUE_RUNTIME_ONLY=ON \
-            -DREXGLUE_HEADLESS_KERNEL=ON
+            -DREXGLUE_HEADLESS_KERNEL=ON \
+            -DTHEFT4_MOLTENVK_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
 
       - name: Build Theft4 with the native GTA IV renderer
         run: cmake --build --preset theft4-device-release --parallel 3
