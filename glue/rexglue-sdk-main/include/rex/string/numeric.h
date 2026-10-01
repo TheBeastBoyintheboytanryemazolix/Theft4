@@ -272,12 +272,18 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
         assert_always();
         return vec128_t();
       }
-      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
-      if (result.ec != std::errc()) {
+      // Apple libc++ only exposes floating-point from_chars at iOS 26.0.
+      // Parse the bounded range with the C parser so older iOS deployment
+      // targets remain supported.
+      std::string text(p, end);
+      char* parsed_end = nullptr;
+      errno = 0;
+      v.f32[i] = std::strtof(text.c_str(), &parsed_end);
+      if (errno != 0 || parsed_end == text.c_str()) {
         assert_always();
         return vec128_t();
       }
-      p = result.ptr;
+      p += static_cast<size_t>(parsed_end - text.c_str());
     }
   }
   return v;
