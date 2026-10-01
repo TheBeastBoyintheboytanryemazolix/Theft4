@@ -1,0 +1,111 @@
+name: iOS IPA (BC RGBA8 fallback)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/a16-bc-texture-fallback
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: iOS Device Release IPA
+    runs-on: macos-26
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout BC fallback branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/a16-bc-texture-fallback
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify fallback commit is present
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin fix/a16-bc-texture-fallback
+          git rev-parse HEAD
+          git merge-base --is-ancestor d6c441f442c9e127a7a3425a2f16d247655412b2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cmake --version
+          uname -m
+
+      - name: Prepare pinned dependencies and patches
+        run: python3 tools/setup_repo.py
+
+      - name: Configure iOS Device Release
+        run: |
+          cmake --preset ios-device-release \
+            -DTHEFT4_BUILD_GAME_CODE=ON \
+            -DTHEFT4_ENABLE_GAME_STARTUP=ON \
+            -DTHEFT4_ENABLE_GTA4_NATIVE_BACKEND=ON \
+            -DREXGLUE_HEADLESS_KERNEL=ON
+
+      - name: Build Theft4 with the native GTA IV renderer
+        run: cmake --build --preset theft4-device-release --parallel 3
+
+      - name: Package unsigned IPA
+        id: package
+        run: |
+          set -euo pipefail
+          BUILD_DIR="out/build/ios-device-release"
+          APP_PATH="$(find "$BUILD_DIR" -type d -path "*/Release-iphoneos/Theft4.app" -print -quit)"
+
+          if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
+            echo "::error::Theft4.app was not produced"
+            find "$BUILD_DIR" -maxdepth 5 -type d -name "*.app" -print || true
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/Theft4.app"
+
+          IPA_NAME="Theft4-iOS-${{ github.sha }}.ipa"
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/$IPA_NAME"
+
+          echo "artifact_path=$RUNNER_TEMP/$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$IPA_NAME" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/$IPA_NAME"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload Xcode build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcode-build-logs-${{ github.run_id }}
+          path: |
+            out/build/ios-device-release/CMakeFiles/CMakeOutput.log
+            out/build/ios-device-release/CMakeFiles/CMakeError.log
+            out/build/ios-device-release/CMakeCache.txt
+            out/build/ios-device-release/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 7
