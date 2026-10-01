@@ -340,7 +340,13 @@ if(THEFT4_ENABLE_GAME_STARTUP)
     target_include_directories(theft4_core_bridge PRIVATE
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src/input"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src"
-        "${THEFT4_GENERATED_DIR}")
+        "${THEFT4_GENERATED_DIR}"
+        # The iOS target compiles the production Vulkan/UI sources directly,
+        # so expose the vendored Vulkan headers to the bridge target even when
+        # the optional XeniOS MoltenVK probe is not present.
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include")
     target_link_libraries(theft4_core_bridge PRIVATE theft4_game_code
         SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler
         xxHash::xxhash)
