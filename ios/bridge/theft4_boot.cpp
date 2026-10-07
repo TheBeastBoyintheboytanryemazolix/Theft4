@@ -155,8 +155,14 @@ int theft4_prepare_game(const char* game_directory, const char* support_director
                 if (patch_status != 0)
                     throw std::runtime_error("Xbox title update application failed: " + std::to_string(patch_status));
                 const auto* info = base.opt_execution_info();
-                if (!info || info->version_value != 0x00000805 || !base.is_valid_executable())
-                    throw std::runtime_error("Patched Xbox executable verification failed");
+                // GTA IV retail TU8 has region-specific target revisions:
+                // USA 0.0.8.5 and EU/PAL 0.0.8.6.
+                constexpr uint32_t kTu8Usa = 0x00000805;
+                constexpr uint32_t kTu8Pal = 0x00000806;
+                if (!info ||
+                    (info->version_value != kTu8Usa && info->version_value != kTu8Pal) ||
+                    !base.is_valid_executable())
+                    throw std::runtime_error("Patched Xbox executable verification failed: expected GTA IV TU8 (USA 0.0.8.5 or EU/PAL 0.0.8.6)");
                 event(context, "TU8 loaded in the runtime; HLE exports and graphics still required before game execution");
                 status = 0;
             } else {
