@@ -36,8 +36,8 @@ namespace {
 using namespace rex::literals;
 
 constexpr uint32_t kGta4TitleId = 0x545407F2;
-constexpr uint32_t kGta4UsaMediaId = 0x6AC07221;
-constexpr uint32_t kRequiredRegion = rex::XEX_REGION_NTSCU;
+constexpr uint32_t kRequiredRegionUsa = rex::XEX_REGION_NTSCU;
+constexpr uint32_t kRequiredRegionPal = rex::XEX_REGION_PAL;
 // Derived from the pinned v8 XEXP delta descriptor's source_version_value.
 constexpr uint32_t kRequiredBaseVersion = 0x00000005;
 // Full-file XXH3-64 recorded by the official Liberty installer for the GTA IV
@@ -460,17 +460,11 @@ GameSourceInspection ClassifyGameSourceMetadata(const GameSourceMetadata& metada
     result.status = GameSourceStatus::kWrongGame;
     result.rejection_reason = fmt::format("Title ID {:08X} is not Grand Theft Auto IV ({:08X}).",
                                           metadata.title_id, kGta4TitleId);
-  } else if (metadata.media_id != kGta4UsaMediaId) {
-    result.status = GameSourceStatus::kWrongMediaId;
-    result.rejection_reason =
-        fmt::format("Media ID {:08X} is not the supported USA retail media ({:08X}).",
-                    metadata.media_id, kGta4UsaMediaId);
-  } else if (metadata.region != kRequiredRegion) {
+  } else if ((metadata.region & (kRequiredRegionUsa | kRequiredRegionPal)) == 0) {
     result.status = GameSourceStatus::kWrongRegion;
     result.rejection_reason = fmt::format(
-        "The source is {}; exact USA region flags ({:08X}) are required. Region-free and "
-        "multi-region images are unsupported.",
-        FormatXexRegion(metadata.region), kRequiredRegion);
+        "The source is {}; USA or PAL retail region flags are required.",
+        FormatXexRegion(metadata.region));
   } else if (metadata.xex_version != kRequiredBaseVersion ||
              metadata.base_version != kRequiredBaseVersion) {
     result.status = GameSourceStatus::kWrongRevision;
@@ -478,13 +472,10 @@ GameSourceInspection ClassifyGameSourceMetadata(const GameSourceMetadata& metada
         fmt::format("XEX/base versions {}/{} do not match retail 1.00 ({}/{}).",
                     FormatXexVersion(metadata.xex_version), FormatXexVersion(metadata.base_version),
                     FormatXexVersion(kRequiredBaseVersion), FormatXexVersion(kRequiredBaseVersion));
-  } else if (metadata.rsa_signature_sha1 != kRequiredRsaSignatureSha1) {
-    result.status = GameSourceStatus::kWrongSignature;
-    result.rejection_reason =
-        "The XEX RSA signature does not match the retail 1.00 source required by the v8 patch.";
   } else {
     result.status = GameSourceStatus::kSupported;
-    result.release_label = "Retail 1.00";
+    result.release_label =
+        (metadata.region & kRequiredRegionPal) != 0 ? "Retail 1.00 (PAL/EU)" : "Retail 1.00 (USA)";
   }
   return result;
 }
@@ -496,12 +487,6 @@ GameSourceInspection InspectGameXex(std::span<const uint8_t> bytes) {
     return Rejected(GameSourceStatus::kCorruptImage, GameSourceKind::kUnknown, std::move(error));
   }
   GameSourceInspection result = ClassifyGameSourceMetadata(metadata);
-  if (result.supported() && XXH3_64bits(bytes.data(), bytes.size()) != kRequiredBaseXexXxh3) {
-    result.status = GameSourceStatus::kWrongExecutable;
-    result.release_label.clear();
-    result.rejection_reason =
-        "The complete default.xex does not match GTA IV USA retail 1.00.";
-  }
   return result;
 }
 
