@@ -110,7 +110,8 @@ enum class EWindowState : uint32_t
 enum class EAspectRatio : uint32_t
 {
     Auto,
-    Original
+    Original,
+    Stretch
 };
 
 enum class ETripleBuffering : uint32_t
