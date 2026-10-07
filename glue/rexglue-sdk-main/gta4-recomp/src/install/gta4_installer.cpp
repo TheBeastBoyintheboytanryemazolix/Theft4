@@ -872,7 +872,7 @@ bool ValidateInstalledPair(const std::filesystem::path& game_root, std::string& 
     return false;
   }
 
-  if (base.version == kRequiredTargetVersion && HashBytes(base_bytes) == kEmbeddedTargetXexSha256) {
+  if (base.version == 0x00000005 &&\n      base.version == kRequiredTargetVersionUsa &&\n      HashBytes(base_bytes) == kEmbeddedTargetXexSha256) {
     return true;
   }
 
