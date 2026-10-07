@@ -39,7 +39,9 @@ constexpr uint32_t kGta4TitleId = 0x545407F2;
 constexpr uint32_t kRequiredRegionUsa = rex::XEX_REGION_NTSCU;
 constexpr uint32_t kRequiredRegionPal = rex::XEX_REGION_PAL;
 // Derived from the pinned v8 XEXP delta descriptor's source_version_value.
-constexpr uint32_t kRequiredBaseVersion = 0x00000005;
+constexpr uint32_t kRequiredBaseVersionUsa = 0x00000005;
+// PAL/EU retail 1.00 uses XEX/base version 0.0.0.6.
+constexpr uint32_t kRequiredBaseVersionPal = 0x00000006;
 // Full-file XXH3-64 recorded by the official Liberty installer for the GTA IV
 // USA retail 1.00 default.xex. This complements the XEXP signature digest:
 // retaining a valid header/signature is not sufficient if the XEX body changed.
@@ -465,17 +467,20 @@ GameSourceInspection ClassifyGameSourceMetadata(const GameSourceMetadata& metada
     result.rejection_reason = fmt::format(
         "The source is {}; USA or PAL retail region flags are required.",
         FormatXexRegion(metadata.region));
-  } else if (metadata.xex_version != kRequiredBaseVersion ||
-             metadata.base_version != kRequiredBaseVersion) {
-    result.status = GameSourceStatus::kWrongRevision;
-    result.rejection_reason =
-        fmt::format("XEX/base versions {}/{} do not match retail 1.00 ({}/{}).",
-                    FormatXexVersion(metadata.xex_version), FormatXexVersion(metadata.base_version),
-                    FormatXexVersion(kRequiredBaseVersion), FormatXexVersion(kRequiredBaseVersion));
   } else {
-    result.status = GameSourceStatus::kSupported;
-    result.release_label =
-        (metadata.region & kRequiredRegionPal) != 0 ? "Retail 1.00 (PAL/EU)" : "Retail 1.00 (USA)";
+    const bool is_pal = (metadata.region & kRequiredRegionPal) != 0;
+    const uint32_t required_version = is_pal ? kRequiredBaseVersionPal : kRequiredBaseVersionUsa;
+    if (metadata.xex_version != required_version || metadata.base_version != required_version) {
+      result.status = GameSourceStatus::kWrongRevision;
+      result.rejection_reason =
+          fmt::format("XEX/base versions {}/{} do not match retail 1.00 ({}/{}).",
+                      FormatXexVersion(metadata.xex_version), FormatXexVersion(metadata.base_version),
+                      FormatXexVersion(required_version), FormatXexVersion(required_version));
+    } else {
+      result.status = GameSourceStatus::kSupported;
+      result.release_label = is_pal ? "Retail 1.00 (PAL/EU)" : "Retail 1.00 (USA)";
+    }
+  }
   }
   return result;
 }
