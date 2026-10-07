@@ -44,7 +44,9 @@ namespace {
 using namespace rex::literals;
 
 constexpr uint32_t kGta4TitleId = 0x545407F2;
-constexpr uint32_t kRequiredTargetVersion = 0x00000805;
+constexpr uint32_t kRequiredTargetVersionUsa = 0x00000805;
+// PAL/EU GTA IV v8 uses target version 0.0.8.6 (the USA build uses 0.0.8.5).
+constexpr uint32_t kRequiredTargetVersionPal = 0x00000806;
 constexpr uint64_t kRequiredBaseXexXxh3 = 2823947441600373906ULL;
 constexpr std::string_view kRequiredPatchSha256 =
     "480aee5e2b42707791e7571bb8407c5bb3f6c7534f07f9beb426db4cfc648fd3";
@@ -327,6 +329,12 @@ bool ValidateBaseXex(const XexInfo& info, std::string& error) {
   return true;
 }
 
+uint32_t RequiredTargetVersion(const XexInfo& base) {
+  // The EU/PAL retail 1.00 executable is revision 0.0.0.6 and its v8
+  // title update targets 0.0.8.6. USA retail 1.00 is 0.0.0.5 -> 0.0.8.5.
+  return base.version == 0x00000006 ? kRequiredTargetVersionPal : kRequiredTargetVersionUsa;
+}
+
 bool ValidatePatch(const XexInfo& base, const XexInfo& patch, std::span<const uint8_t> patch_bytes,
                    std::string& error) {
   const uint32_t patch_flags = rex::XEX_MODULE_MODULE_PATCH | rex::XEX_MODULE_PATCH_DELTA;
@@ -334,8 +342,11 @@ bool ValidatePatch(const XexInfo& base, const XexInfo& patch, std::span<const ui
     error = "The selected update does not contain a delta XEXP patch.";
     return false;
   }
-  if (patch.delta_target_version != kRequiredTargetVersion) {
-    error = "This build requires the GTA IV v8 (0.0.8.5) title update.";
+  const uint32_t required_target_version = RequiredTargetVersion(base);
+  if (patch.delta_target_version != required_target_version) {
+    error = base.version == 0x00000006
+                ? "This build requires the GTA IV v8 (EU/PAL 0.0.8.6) title update."
+                : "This build requires the GTA IV v8 (USA 0.0.8.5) title update.";
     return false;
   }
   if (patch.delta_source_version != base.version) {
@@ -740,7 +751,7 @@ bool WriteManifest(const std::filesystem::path& game_root, const XexInfo& base,
   stream << "format=1\n";
   stream << "title_id=545407F2\n";
   stream << "base_version=" << base.version << "\n";
-  stream << "target_version=" << kRequiredTargetVersion << "\n";
+  stream << "target_version=" << RequiredTargetVersion(base) << "\n";
   stream << "rpf_layout=preserved-and-extracted\n";
   stream << "base_sha256=" << HashBytes(base_bytes) << "\n";
   if (!patch_bytes.empty()) {
