@@ -513,8 +513,13 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             throw std::runtime_error("Game module or Xbox import resolution failed");
         auto module = runtime.kernel_state()->GetExecutableModule();
         const auto* info = module->xex_module()->opt_execution_info();
-        if (!info || info->version_value != 0x00000805)
-            throw std::runtime_error("Refusing execution: loaded game is not matching TU8");
+        // GTA IV retail TU8 has region-specific execution revisions:
+        // USA targets 0.0.8.5, while EU/PAL targets 0.0.8.6.
+        constexpr uint32_t kTu8Usa = 0x00000805;
+        constexpr uint32_t kTu8Pal = 0x00000806;
+        if (!info || (info->version_value != kTu8Usa && info->version_value != kTu8Pal))
+            throw std::runtime_error("Refusing execution: loaded game is not matching GTA IV TU8 (USA 0.0.8.5 or EU/PAL 0.0.8.6)");
+        REXLOG_INFO("GTA IV TU8 execution revision accepted: 0x{:08X}", info->version_value);
         const uint32_t title_id = runtime.kernel_state()->title_id();
         if (title_id != 0 && !runtime.cache_root().empty()) {
             event(context, "Loading the persistent GTA IV shader and pipeline cache");
