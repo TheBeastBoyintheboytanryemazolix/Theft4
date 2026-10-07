@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - eu-retail-test-from-fix
+      - eu-retail-for-fix
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout EU retail texture-fix branch
         uses: actions/checkout@v4
         with:
-          ref: eu-retail-test-from-fix
+          ref: ${{ github.ref_name }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -31,7 +31,7 @@ jobs:
       - name: Verify fallback commit is present
         run: |
           set -euo pipefail
-          git fetch --no-tags origin eu-retail-test-from-fix
+          git fetch --no-tags origin ${{ github.ref_name }}
           git rev-parse HEAD
           git merge-base --is-ancestor d6c441f442c9e127a7a3425a2f16d247655412b2 HEAD
 
