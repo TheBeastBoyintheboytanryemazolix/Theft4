@@ -52,8 +52,10 @@ namespace GTA4 {
     static constexpr uint32_t MediaId_TLAD = 0x00000002;
     static constexpr uint32_t MediaId_TBOGT = 0x00000003;
     
-    // Expected region for US version
-    static constexpr uint32_t RequiredRegion = static_cast<uint32_t>(XexRegion::NTSCU);
+    // GTA IV retail support includes USA/NTSC-U and EU/PAL.
+    static constexpr uint32_t RequiredRegion =
+        static_cast<uint32_t>(XexRegion::NTSCU) |
+        static_cast<uint32_t>(XexRegion::PAL);
 }
 
 class XexValidator {
