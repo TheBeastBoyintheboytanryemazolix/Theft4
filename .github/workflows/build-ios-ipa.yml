@@ -1,10 +1,10 @@
-name: iOS IPA (BC RGBA8 fallback)
+name: iOS IPA (EU retail + BC RGBA8 fallback)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/a16-bc-texture-fallback
+      - eu-retail-test-from-fix
 
 permissions:
   contents: read
@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 180
 
     steps:
-      - name: Checkout BC fallback branch
+      - name: Checkout EU retail texture-fix branch
         uses: actions/checkout@v4
         with:
-          ref: fix/a16-bc-texture-fallback
+          ref: eu-retail-test-from-fix
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -31,9 +31,9 @@ jobs:
       - name: Verify fallback commit is present
         run: |
           set -euo pipefail
-          git fetch --no-tags origin fix/a16-bc-texture-fallback
+          git fetch --no-tags origin eu-retail-test-from-fix
           git rev-parse HEAD
-          git merge-base --is-ancestor d6c441f442c9e127a7a3425a2f16d247655412b2 HEAD
+          git merge-base --is-ancestor 9bc208ba0e55a6f4d1e2614541e418884fb288c8 HEAD
 
       - name: Set up Python
         uses: actions/setup-python@v5
