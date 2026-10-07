@@ -342,10 +342,9 @@ bool ValidatePatch(const XexInfo& base, const XexInfo& patch, std::span<const ui
     error = "The selected title update does not target this base-game revision.";
     return false;
   }
-  if (HashBytes(patch_bytes) != kRequiredPatchSha256) {
-    error = "The selected XEXP is not the supported GTA IV v8 patch.";
-    return false;
-  }
+  // EU/PAL retail discs use a different XEXP hash/signature than the USA media.
+  // Accept any structurally valid v8 delta that targets this base executable; the
+  // digest binding below still prevents applying an update to the wrong XEX.
 
   std::array<uint8_t, 0x14> digest{};
   sha1::SHA1 sha;
@@ -866,10 +865,6 @@ bool ValidateInstalledPair(const std::filesystem::path& game_root, std::string& 
     return true;
   }
 
-  if (XXH3_64bits(base_bytes.data(), base_bytes.size()) != kRequiredBaseXexXxh3) {
-    reason = "default.xex does not match GTA IV USA retail 1.00.";
-    return false;
-  }
 
   const auto patch_path = game_root / "default.xexp";
   std::vector<uint8_t> patch_bytes;
@@ -912,10 +907,6 @@ Result InstallTitleUpdate(const std::filesystem::path& game_root,
     }
     XexInfo base;
     if (!ParseXex(base_bytes, base, result.error) || !ValidateBaseXex(base, result.error)) {
-      return result;
-    }
-    if (XXH3_64bits(base_bytes.data(), base_bytes.size()) != kRequiredBaseXexXxh3) {
-      result.error = "default.xex does not match GTA IV USA retail 1.00.";
       return result;
     }
 
