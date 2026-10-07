@@ -84,8 +84,8 @@ XexValidationResult XexValidator::validate(const uint8_t* data, size_t size) {
     if (!result.isCorrectGame) {
         result.errorMessage = "This is not GTA IV (wrong Title ID)";
     } else if (!result.isCorrectRegion) {
-        result.errorMessage = "This ROM is the correct game, but the wrong version.\n"
-                              "This project requires the NTSC-U (USA) version of the game.";
+        result.errorMessage = "This is the correct game, but the executable region is unsupported.\n"
+                              "Supported retail regions are NTSC-U (USA) and PAL (Europe).";
     }
     
     return result;
