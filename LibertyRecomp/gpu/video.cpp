@@ -3795,10 +3795,25 @@ static void ProcExecuteCommandList(const RenderCommand& cmd)
             float offset = (Config::Brightness - 0.5f) * 1.2f;
             constants.gamma = 1.0f / std::clamp(constants.gamma + offset, 0.1f, 4.0f);
             constants.textureDescriptorIndex = g_intermediaryBackBufferTextureDescriptorIndex;
-            constants.viewportOffsetX = (int32_t(g_swapChain->getWidth()) - int32_t(Video::s_viewportWidth)) / 2;
-            constants.viewportOffsetY = (int32_t(g_swapChain->getHeight()) - int32_t(Video::s_viewportHeight)) / 2;
-            constants.viewportWidth = Video::s_viewportWidth;
-            constants.viewportHeight = Video::s_viewportHeight;
+            if (Config::AspectRatio == EAspectRatio::Stretch)
+            {
+                // The game is rendered into a 16:9 intermediary texture, but
+                // Stretch intentionally maps that result across the complete
+                // display. This produces the requested full-screen iPad
+                // presentation without changing GTA IV's internal render
+                // targets, camera, or texture paths.
+                constants.viewportOffsetX = 0;
+                constants.viewportOffsetY = 0;
+                constants.viewportWidth = g_swapChain->getWidth();
+                constants.viewportHeight = g_swapChain->getHeight();
+            }
+            else
+            {
+                constants.viewportOffsetX = (int32_t(g_swapChain->getWidth()) - int32_t(Video::s_viewportWidth)) / 2;
+                constants.viewportOffsetY = (int32_t(g_swapChain->getHeight()) - int32_t(Video::s_viewportHeight)) / 2;
+                constants.viewportWidth = Video::s_viewportWidth;
+                constants.viewportHeight = Video::s_viewportHeight;
+            }
 
             // Populate HDR constants from config
             hdrConstants.hdrMode = static_cast<uint32_t>(Config::HDRMode.Value);
@@ -3910,7 +3925,12 @@ void Video::ComputeViewportDimensions()
     switch (Config::AspectRatio)
     {
         case EAspectRatio::Original:
+        case EAspectRatio::Stretch:
         {
+            // Stretch keeps the game render at its native 16:9 composition.
+            // EAspectRatio::Stretch differs at final presentation: the
+            // 16:9 result is scaled to the entire display instead of being
+            // pillar/letterboxed.
             if (aspectRatio > WIDE_ASPECT_RATIO)
             {
                 s_viewportWidth = height * 16 / 9;
