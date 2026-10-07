@@ -713,42 +713,48 @@ CONFIG_DEFINE_ENUM_LOCALE(EAspectRatio)
         ELanguage::English,
         {
             { EAspectRatio::Auto,     { "Auto", "Auto: the aspect ratio will dynamically adjust to the window size." } },
-            { EAspectRatio::Original, { "Original", "Original: locks the game to a widescreen aspect ratio." } }
+            { EAspectRatio::Original, { "Original", "Original: locks the game to a widescreen aspect ratio." } },
+            { EAspectRatio::Stretch,  { "Stretch", "Stretch: fills the entire display by stretching the 16:9 game image." } }
         }
     },
     {
         ELanguage::Japanese,
         {
             { EAspectRatio::Auto,     { "自動", "自動: アスペクト比はウィンドウサイズに合わせて調整されます" } },
-            { EAspectRatio::Original, { "オリジナル", "オリジナル: ワイドスクリーンのアスペクト比に固定されます" } }
+            { EAspectRatio::Original, { "オリジナル", "オリジナル: ワイドスクリーンのアスペクト比に固定されます" } },
+            { EAspectRatio::Stretch,  { "ストレッチ", "ストレッチ: 16:9のゲーム映像を引き伸ばしてディスプレイ全体に表示します" } }
         }
     },
     {
         ELanguage::German,
         {
             { EAspectRatio::Auto,     { "Auto", "Auto: Das Seitenverhältnis passt sich automatisch der Fenstergröße an." } },
-            { EAspectRatio::Original, { "Original", "Original: Stellt das Spiel in einem Breitbildschirm-Format dar." } }
+            { EAspectRatio::Original, { "Original", "Original: Stellt das Spiel in einem Breitbildschirm-Format dar." } },
+            { EAspectRatio::Stretch,  { "Strecken", "Strecken: Füllt das gesamte Display, indem das 16:9-Spielbild gestreckt wird." } }
         }
     },
     {
         ELanguage::French,
         {
             { EAspectRatio::Auto,     { "Auto", "Auto : le format d'image s'adapte automatiquement à la taille de la fenêtre." } },
-            { EAspectRatio::Original, { "Original", "Original : force le jeu sur un format d'image large." } }
+            { EAspectRatio::Original, { "Original", "Original : force le jeu sur un format d'image large." } },
+            { EAspectRatio::Stretch,  { "Étiré", "Étiré : remplit tout l'écran en étirant l'image du jeu en 16:9." } }
         }
     },
     {
         ELanguage::Spanish,
         {
             { EAspectRatio::Auto,     { "Auto", "Auto: la relación de aspecto se ajusta de forma dinámica al tamaño de la ventana." } },
-            { EAspectRatio::Original, { "Original", "Original: muestra el juego en relación de aspecto de pantalla ancha." } }
+            { EAspectRatio::Original, { "Original", "Original: muestra el juego en relación de aspecto de pantalla ancha." } },
+            { EAspectRatio::Stretch,  { "Estirar", "Estirar: llena toda la pantalla estirando la imagen del juego en 16:9." } }
         }
     },
     {
         ELanguage::Italian,
         {
             { EAspectRatio::Auto,     { "Auto", "Auto: il rapporto d'aspetto verra cambiato automaticamente in base alle dimensioni della finestra." } },
-            { EAspectRatio::Original, { "Originale", "Originale: blocca il gioco a un rapporto d'aspetto widescreen." } }
+            { EAspectRatio::Original, { "Originale", "Originale: blocca il gioco a un rapporto d'aspetto widescreen." } },
+            { EAspectRatio::Stretch,  { "Allungato", "Allungato: riempie l'intero display allungando l'immagine di gioco 16:9." } }
         }
     }
 };
