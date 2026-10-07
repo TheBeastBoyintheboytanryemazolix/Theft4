@@ -481,7 +481,6 @@ GameSourceInspection ClassifyGameSourceMetadata(const GameSourceMetadata& metada
       result.release_label = is_pal ? "Retail 1.00 (PAL/EU)" : "Retail 1.00 (USA)";
     }
   }
-  }
   return result;
 }
 
