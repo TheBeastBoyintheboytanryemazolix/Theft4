@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin eu-retail-test-from-fix
           git rev-parse HEAD
-          git merge-base --is-ancestor 9bc208ba0e55a6f4d1e2614541e418884fb288c8 HEAD
+          git merge-base --is-ancestor d6c441f442c9e127a7a3425a2f16d247655412b2 HEAD
 
       - name: Set up Python
         uses: actions/setup-python@v5
