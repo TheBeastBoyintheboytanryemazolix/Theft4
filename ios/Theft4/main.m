@@ -734,7 +734,7 @@ static void bootEvent(void *context, const char *event) {
         _aspectRatio, _shadowQuality, _drawDistance, _modelDetail, _reflectionQuality, _antiAliasing]];
     NSMutableArray<NSString *> *graphicsKeys = [NSMutableArray arrayWithArray:@[
         @"Theft4AspectRatio", @"Theft4ShadowQuality", @"Theft4DrawDistance", @"Theft4ModelDetail",
-        @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
+        @"Theft4ReflectionQuality", @"Theft4AntiAliasing"]];
     if (_frameRate && _graphicsQuality) {
         [graphicsChoices insertObject:_frameRate atIndex:1];
         [graphicsKeys insertObject:@"Theft4FrameRate" atIndex:1];
