@@ -1462,7 +1462,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (sender == _graphicsQuality && _graphicsQuality.selectedSegmentIndex == 1) {
         [self applyVeryLowGraphicsChoices];
         [NSUserDefaults.standardUserDefaults setObject:@"very-low" forKey:@"Theft4GraphicsPreset"];
-    } else if (sender) {
+    } else if (sender && sender != _frameRate) {
         [NSUserDefaults.standardUserDefaults setObject:@"custom" forKey:@"Theft4GraphicsPreset"];
         if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
     }
@@ -2348,7 +2348,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         _anisotropicFiltering.enabled = NO;
         _motionBlur.enabled = NO;
         _depthOfField.enabled = NO;
-        for (UISegmentedControl *choice in @[_aspectRatio, _shadowQuality, _drawDistance, _modelDetail,
+        for (UISegmentedControl *choice in @[_aspectRatio, _frameRate, _graphicsQuality,
+                                              _shadowQuality, _drawDistance, _modelDetail,
                                               _reflectionQuality, _antiAliasing])
             choice.enabled = NO;
     }
