@@ -763,8 +763,8 @@ static void bootEvent(void *context, const char *event) {
         NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
         uint32_t height = theft4_lab_render_height((uint32_t)[defaults integerForKey:@"Theft4LabRenderHeight"]);
         _bringupOverlay.renderResolution.selectedSegmentIndex =
-            height == 540 ? 0 : height == 900 ? 2 : height == 1080 ? 3 :
-            height == THEFT4_LAB_NATIVE_16_9 ? 4 : 1;
+            height == 240 ? 0 : height == 540 ? 1 : height == 900 ? 3 : height == 1080 ? 4 :
+            height == THEFT4_LAB_NATIVE_16_9 ? 5 : 2;
         if (![defaults objectForKey:@"Theft4LabFSREnabled"])
             [defaults setBool:_enhancedOutput.on forKey:@"Theft4LabFSREnabled"];
         _bringupOverlay.fsrUpscaling.on = [defaults boolForKey:@"Theft4LabFSREnabled"];
@@ -1477,7 +1477,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [NSUserDefaults.standardUserDefaults setObject:@"custom" forKey:@"Theft4GraphicsPreset"];
         if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
     }
-    if (_bringupOverlay.renderResolution.selectedSegmentIndex == 4)
+    if (_bringupOverlay.renderResolution.selectedSegmentIndex == 5)
         _bringupOverlay.fsrUpscaling.on = NO;
     [self applyLimitedMemoryCaps];
     [NSUserDefaults.standardUserDefaults setBool:_constantReuse.on forKey:@"Theft4Round1ConstantReuse"];
@@ -1537,7 +1537,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
 - (void)applyOriginalGraphicsChoices {
     if (!_bringupOverlay.renderResolution || _executionAttempted) return;
-    _bringupOverlay.renderResolution.selectedSegmentIndex = 1;
+    _bringupOverlay.renderResolution.selectedSegmentIndex = 2;
     _aspectRatio.selectedSegmentIndex = 0;
     if (_frameRate) _frameRate.selectedSegmentIndex = 0;
     if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
@@ -1574,7 +1574,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             _depthOfField.on = NO;
             break;
         case Theft4AutomaticGraphicsTierIPhone17Pro:
-            _bringupOverlay.renderResolution.selectedSegmentIndex = 2;
+            _bringupOverlay.renderResolution.selectedSegmentIndex = 3;
             _bringupOverlay.fsrUpscaling.on = YES;
             _shadowQuality.selectedSegmentIndex = 2;
             _antiAliasing.selectedSegmentIndex = 2;
@@ -1583,7 +1583,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             _depthOfField.on = NO;
             break;
         case Theft4AutomaticGraphicsTierM5IPad:
-            _bringupOverlay.renderResolution.selectedSegmentIndex = 3;
+            _bringupOverlay.renderResolution.selectedSegmentIndex = 4;
             _bringupOverlay.fsrUpscaling.on = YES;
             _shadowQuality.selectedSegmentIndex = 2;
             _modelDetail.selectedSegmentIndex = 2;
@@ -1619,6 +1619,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
     [_bringupOverlay.renderResolution setEnabled:NO forSegmentAtIndex:3];
     [_bringupOverlay.renderResolution setEnabled:NO forSegmentAtIndex:4];
+    [_bringupOverlay.renderResolution setEnabled:NO forSegmentAtIndex:5];
     for (NSInteger index = 2; index < _shadowQuality.numberOfSegments; ++index)
         [_shadowQuality setEnabled:NO forSegmentAtIndex:index];
     for (NSInteger index = 1; index < _drawDistance.numberOfSegments; ++index)
