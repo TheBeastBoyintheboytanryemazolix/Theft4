@@ -57,6 +57,11 @@ REXCVAR_DECLARE(double, gta4_fsr1_sharpness_reduction);
 REXCVAR_DECLARE(uint32_t, gta4_shadow_map_base_size);
 REXCVAR_DECLARE(double, gta4_shadow_distance_scale);
 REXCVAR_DECLARE(std::string, gta4_reflection_resolution);
+REXCVAR_DECLARE(std::string, gta4_reflection_resolution_cap);
+REXCVAR_DECLARE(std::string, gta4_mirror_reflection_resolution);
+REXCVAR_DECLARE(std::string, gta4_water_reflection_resolution);
+REXCVAR_DECLARE(std::string, gta4_environment_reflection_resolution);
+REXCVAR_DECLARE(std::string, gta4_reflection_aa);
 REXCVAR_DECLARE(std::string, gta4_aspect_ratio);
 REXCVAR_DECLARE(std::string, gta4_native_anti_aliasing);
 REXCVAR_DECLARE(bool, gta4_force_highest_lod);
@@ -214,6 +219,24 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const std::string_view anti_aliasing = anti_aliasing_override ? anti_aliasing_override : "smaa";
         if (anti_aliasing != "off" && anti_aliasing != "fxaa" && anti_aliasing != "smaa") throw std::runtime_error("THEFT4_ANTI_ALIASING must be off, fxaa, or smaa");
         REXCVAR_SET(gta4_native_anti_aliasing, std::string(anti_aliasing));
+        if (graphics_quality == "very-low") {
+            REXCVAR_SET(gta4_native_upscaler, "fsr1");
+            REXCVAR_SET(gta4_fsr1_quality, "performance");
+            REXCVAR_SET(gta4_shadow_map_base_size, 128u);
+            REXCVAR_SET(gta4_shadow_distance_scale, 0.50);
+            REXCVAR_SET(gta4_draw_distance_scale, 0.50);
+            REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
+            REXCVAR_SET(gta4_force_highest_lod, false);
+            REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
+            REXCVAR_SET(gta4_reflection_resolution, "off");
+            REXCVAR_SET(gta4_mirror_reflection_resolution, "off");
+            REXCVAR_SET(gta4_water_reflection_resolution, "off");
+            REXCVAR_SET(gta4_environment_reflection_resolution, "off");
+            REXCVAR_SET(gta4_reflection_aa, "off");
+            REXCVAR_SET(gta4_native_anti_aliasing, "off");
+            REXLOG_INFO("Theft4 A16 Very Low optimization enabled");
+        }
+
         REXLOG_INFO("Theft4 graphics: shadows={} ({} map, {}x range) draw-distance={}x drawable-limit={} highest-lod={} lod-selection-bias={} reflections={} anti-aliasing={}", shadow, shadow_map_size, shadow_distance, draw_distance_scale, drawable_reference_limit, highest_lod == "1", lod_distance, reflection, anti_aliasing);
         uint32_t native_frame_slots = 2; const char* frames = std::getenv("THEFT4_NATIVE_FRAMES_IN_FLIGHT");
         if (frames) { const std::string_view value(frames); if (value != "1" && value != "2") throw std::runtime_error("THEFT4_NATIVE_FRAMES_IN_FLIGHT must be 1 or 2"); native_frame_slots = value == "1" ? 1u : 2u; }
