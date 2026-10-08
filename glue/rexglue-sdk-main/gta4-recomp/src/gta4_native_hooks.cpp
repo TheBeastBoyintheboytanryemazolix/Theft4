@@ -2949,7 +2949,7 @@ NativeResolutionOverride GetNativeResolutionOverride(uint32_t requested_width,
         uint32_t(std::max(1.0, std::round(double(result.display_width) / scale)));
     const uint32_t candidate_height =
         uint32_t(std::max(1.0, std::round(double(result.display_height) / scale)));
-    if (candidate_width >= 640 && candidate_height >= 360) {
+    if (candidate_width >= 320 && candidate_height >= 180) {
       result.width = candidate_width;
       result.height = candidate_height;
       result.fsr1_active =
@@ -2959,7 +2959,7 @@ NativeResolutionOverride GetNativeResolutionOverride(uint32_t requested_width,
       if (!logged_small_fsr_input.exchange(true)) {
         REXLOG_WARN(
             "gta4-native-upscaler: FSR 1 {} input {}x{} for display {}x{} is below "
-            "the validated 640x360 render floor; using native resolution",
+            "the validated 320x180 render floor; using native resolution",
             quality, candidate_width, candidate_height, result.display_width,
             result.display_height);
       }
