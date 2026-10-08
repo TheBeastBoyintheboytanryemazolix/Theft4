@@ -14,6 +14,7 @@
 @property(nonatomic, readonly) UISwitch *enhancedOutput;
 @property(nonatomic, readonly) UISwitch *fsrBoost;
 @property(nonatomic, readonly) UISegmentedControl *renderResolution;
+@property(nonatomic, readonly) UISegmentedControl *aspectRatio;
 @property(nonatomic, readonly) UISegmentedControl *frameRate;
 @property(nonatomic, readonly) UISegmentedControl *graphicsQuality;
 @property(nonatomic, readonly) UISwitch *fsrUpscaling;
