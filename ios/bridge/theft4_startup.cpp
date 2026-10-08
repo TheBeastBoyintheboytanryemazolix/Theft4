@@ -72,6 +72,22 @@ REXCVAR_DECLARE(double, gta4_traffic_density_scale);
 REXCVAR_DECLARE(double, gta4_parked_car_density_scale);
 REXCVAR_DECLARE(double, gta4_ped_density_scale);
 REXCVAR_DECLARE(double, gta4_scenario_ped_density_scale);
+
+REXCVAR_DEFINE_DOUBLE(gta4_traffic_density_scale, 1.0, "Theft4",
+                      "GTA IV traffic density multiplier")
+    .range(0.0, 3.0);
+
+REXCVAR_DEFINE_DOUBLE(gta4_parked_car_density_scale, 1.0, "Theft4",
+                      "GTA IV parked-car density multiplier")
+    .range(0.0, 3.0);
+
+REXCVAR_DEFINE_DOUBLE(gta4_ped_density_scale, 1.0, "Theft4",
+                      "GTA IV pedestrian density multiplier")
+    .range(0.0, 3.0);
+
+REXCVAR_DEFINE_DOUBLE(gta4_scenario_ped_density_scale, 1.0, "Theft4",
+                      "GTA IV scenario pedestrian density multiplier")
+    .range(0.0, 3.0);
 #endif
 
 extern const rex::PPCImageInfo PPCImageConfig;
