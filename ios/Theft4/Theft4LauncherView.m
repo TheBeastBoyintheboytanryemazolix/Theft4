@@ -231,7 +231,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     if (lab) {
         _renderResolution = ChoiceControl(@[@"320×240", @"540p", @"720p", @"900p", @"1080p", @"Native"], @"renderResolution",
             @"Render resolution", @"The internal scene resolution. Applies at the next game launch.");
-        _renderResolution.selectedSegmentIndex = 1;
+        _renderResolution.selectedSegmentIndex = 2;
         _aspectRatio = ChoiceControl(@[@"16:9", @"Stretch"], @"aspectRatio",
             @"Aspect ratio", @"16:9 keeps the game centered with its original widescreen shape. Stretch fills the entire display.");
         _aspectRatio.selectedSegmentIndex = 0;
