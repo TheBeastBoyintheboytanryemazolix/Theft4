@@ -146,6 +146,20 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const char* depth_of_field_value = std::getenv("THEFT4_DEPTH_OF_FIELD");
         if (depth_of_field_value && std::string_view(depth_of_field_value) != "0" && std::string_view(depth_of_field_value) != "1") throw std::runtime_error("THEFT4_DEPTH_OF_FIELD must be 0 or 1");
         REXLOG_INFO("Theft4 depth of field: {} (native title multiplier)", depth_of_field_value && std::string_view(depth_of_field_value) == "0" ? "off" : "on");
+        const char* frame_rate_override = std::getenv("THEFT4_FRAME_RATE");
+        const std::string_view frame_rate = frame_rate_override ? frame_rate_override : "30";
+        if (frame_rate != "30" && frame_rate != "60")
+            throw std::runtime_error("THEFT4_FRAME_RATE must be 30 or 60");
+        Config::FrameRate.Value = frame_rate == "60" ? EFrameRateLimit::FPS60 : EFrameRateLimit::FPS30;
+
+        const char* graphics_quality_override = std::getenv("THEFT4_GRAPHICS_QUALITY");
+        const std::string_view graphics_quality = graphics_quality_override ? graphics_quality_override : "custom";
+        if (graphics_quality != "custom" && graphics_quality != "very-low")
+            throw std::runtime_error("THEFT4_GRAPHICS_QUALITY must be custom or very-low");
+        Config::GraphicsQuality.Value = graphics_quality == "very-low" ? EGraphicsQuality::VeryLow : EGraphicsQuality::Custom;
+        CONFIG_CALLBACK(GraphicsQuality);
+        REXLOG_INFO("Theft4 launcher graphics quality={} frame-rate={}", graphics_quality, frame_rate);
+
         const auto output = theft4_metal_get_output_policy();
         const char* aspect_override = std::getenv("THEFT4_ASPECT_RATIO");
         const std::string_view aspect = aspect_override ? aspect_override : "original";
