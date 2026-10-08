@@ -2642,6 +2642,12 @@ std::pair<uint32_t, uint32_t> GetReflectionPhysicalExtent(const ReflectionResour
     // cost from the reflection passes without changing guest resource ABI.
     return {1, 1};
   }
+  if (selection == "low") {
+    // Preserve visible reflections at a deliberately tiny resolution for low-end devices.
+    return resource.family == ReflectionFamily::kEnvironment
+               ? std::pair<uint32_t, uint32_t>{256, 256}
+               : std::pair<uint32_t, uint32_t>{256, 144};
+  }
   if (selection == "original") {
     return {resource.logical_width, resource.logical_height};
   }
