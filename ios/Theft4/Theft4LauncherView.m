@@ -83,6 +83,8 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     NSArray<UIView *> *_pages;
     BOOL _active, _retired, _portraitMenu, _landscapePhoneMenu;
     UISegmentedControl *_aspectRatio;
+    UISegmentedControl *_frameRate;
+    UISegmentedControl *_graphicsQuality;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -233,6 +235,12 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         _aspectRatio = ChoiceControl(@[@"16:9", @"Stretch"], @"aspectRatio",
             @"Aspect ratio", @"16:9 keeps the game centered with its original widescreen shape. Stretch fills the entire display.");
         _aspectRatio.selectedSegmentIndex = 0;
+        _frameRate = ChoiceControl(@[@"30 FPS", @"60 FPS"], @"frameRate",
+            @"Frame rate", @"Limit the game to 30 or 60 frames per second.");
+        _frameRate.selectedSegmentIndex = 0;
+        _graphicsQuality = ChoiceControl(@[@"Custom", @"Very Low"], @"graphicsQuality",
+            @"Graphics quality", @"Very Low applies a performance-focused preset. Custom lets the individual graphics controls decide.");
+        _graphicsQuality.selectedSegmentIndex = 0;
         _fsrUpscaling = [UISwitch new];
         _fsrUpscaling.onTintColor = Ink(0xB6884D);
         _fsrUpscaling.accessibilityIdentifier = @"settings.fsrUpscaling";
@@ -241,6 +249,8 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         [graphicsRows addObjectsFromArray:@[
             [self choice:@"INTERNAL RESOLUTION" detail:@"Select the internal scene resolution." control:_renderResolution],
             [self choice:@"ASPECT RATIO" detail:@"16:9 keeps the original widescreen presentation. Stretch fills the entire display by stretching the final game image." control:_aspectRatio],
+            [self choice:@"FRAME RATE" detail:@"Choose a 30 FPS or 60 FPS cap. The limiter is applied by the native renderer." control:_frameRate],
+            [self choice:@"GRAPHICS QUALITY" detail:@"Very Low applies a real low-cost renderer preset; Custom leaves the individual graphics settings in control." control:_graphicsQuality],
             [self setting:@"FSR UPSCALING" detail:
                 (strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "a19") == 0 ||
                  strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "iphone-6gb") == 0 ||
