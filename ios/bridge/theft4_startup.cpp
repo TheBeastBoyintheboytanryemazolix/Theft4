@@ -33,6 +33,7 @@ REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);
 REXCVAR_DECLARE(bool, vulkan_tight_render_area);
 REXCVAR_DECLARE(std::string, gta4_transition_diagnostics);
 #ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+REXCVAR_DECLARE(uint32_t, gta4_frame_limit);
 REXCVAR_DECLARE(uint32_t, gta4_native_frames_in_flight);
 REXCVAR_DECLARE(bool, gta4_native_texture_content_cache);
 REXCVAR_DECLARE(bool, gta4_native_sparse_texture_walks);
@@ -149,6 +150,12 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const std::string_view frame_rate = frame_rate_override ? frame_rate_override : "30";
         if (frame_rate != "30" && frame_rate != "60")
             throw std::runtime_error("THEFT4_FRAME_RATE must be 30 or 60");
+        // The launcher value must reach the native present limiter. The limiter
+        // already reads gta4_frame_limit on every title present; previously this
+        // env var was only validated/logged, so the 30/60 control could not change
+        // the real game frame cap.
+        const uint32_t native_frame_limit = frame_rate == "60" ? 60u : 30u;
+        REXCVAR_SET(gta4_frame_limit, native_frame_limit);
         const char* graphics_quality_override = std::getenv("THEFT4_GRAPHICS_QUALITY");
         const std::string_view graphics_quality = graphics_quality_override ? graphics_quality_override : "custom";
         if (graphics_quality != "custom" && graphics_quality != "very-low")
@@ -212,6 +219,15 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (frames) { const std::string_view value(frames); if (value != "1" && value != "2") throw std::runtime_error("THEFT4_NATIVE_FRAMES_IN_FLIGHT must be 1 or 2"); native_frame_slots = value == "1" ? 1u : 2u; }
         REXCVAR_SET(gta4_native_frames_in_flight, native_frame_slots);
         REXLOG_INFO("Theft4 native frame-resource slots set to {} ({})", native_frame_slots, frames ? "launch override" : "iOS default");
+        // Very Low is the performance-oriented preset: keep the native frame
+        // resource budget explicit and avoid startup pipeline prewarming that
+        // competes with the low-power first scene. This is a conservative CPU/
+        // memory optimization; it does not touch texture decoding or EU/TU8 code.
+        if (graphics_quality == "very-low") {
+            REXCVAR_SET(gta4_native_frames_in_flight, 2u);
+            REXCVAR_SET(gta4_native_pipeline_prewarm, false);
+            REXLOG_INFO("Theft4 optimized render path: 2 native frame slots, pipeline prewarm off");
+        }
 #ifdef THEFT4_LAB_BUILD
         REXCVAR_SET(gta4_profile_native_detailed_gpu, true); REXCVAR_SET(gta4_profile_native_detailed_cpu, true); REXCVAR_SET(gta4_profile_native_gpu_query_budget, 128u); REXCVAR_SET(gta4_profile_native_interval, 3u); REXCVAR_SET(gta4_profile_native_samples, 120u);
         const char* capture_setting = std::getenv("THEFT4_PERFORMANCE_CAPTURE"); const bool capture_on_launch = capture_setting && std::string_view(capture_setting) == "1"; REXCVAR_SET(gta4_profile_native_autostart, capture_on_launch);
