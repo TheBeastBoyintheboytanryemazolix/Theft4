@@ -243,24 +243,20 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (graphics_quality == "very-low") {
             REXCVAR_SET(gta4_native_upscaler, "fsr1");
             REXCVAR_SET(gta4_fsr1_quality, "performance");
-                        REXCVAR_SET(gta4_shadow_map_base_size, 128u);
-            REXCVAR_SET(gta4_shadow_distance_scale, 0.50);
+            // Use the existing 720p output policy's logical dimensions as the
+            // input to FSR Performance. This lowers scene rendering resolution
+            // without changing the Metal drawable size or forcing an unusual mode.
+            REXCVAR_SET(video_mode_width, int32_t(output.render_width));
+            REXCVAR_SET(video_mode_height, int32_t(output.render_height));
+            REXCVAR_SET(gta4_anisotropic_filtering, std::string("1x"));
             REXCVAR_SET(gta4_draw_distance_scale, 0.50);
             REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
-            REXCVAR_SET(gta4_traffic_density_scale, 0.35);
-            REXCVAR_SET(gta4_parked_car_density_scale, 0.25);
-            REXCVAR_SET(gta4_ped_density_scale, 0.35);
-            REXCVAR_SET(gta4_scenario_ped_density_scale, 0.35);
             REXCVAR_SET(gta4_force_highest_lod, false);
             REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
-            // Keep reflections enabled for visual continuity, but render them at a tiny fixed target.
-            REXCVAR_SET(gta4_reflection_resolution, "low");
-            REXCVAR_SET(gta4_mirror_reflection_resolution, "low");
-            REXCVAR_SET(gta4_water_reflection_resolution, "low");
-            REXCVAR_SET(gta4_environment_reflection_resolution, "low");
-            REXCVAR_SET(gta4_reflection_aa, "off");
+            // Respect the user's selected shadow and reflection quality.
+            // The performance preset does not rewrite either system.
             REXCVAR_SET(gta4_native_anti_aliasing, "off");
-            REXLOG_INFO("Theft4 A16 Very Low optimization enabled");
+            REXLOG_INFO("Theft4 A16 Very Low optimization enabled: FSR Performance, reduced scene resolution, 1x anisotropy, AA off; shadow/reflection selections preserved");
         }
 
         REXLOG_INFO("Theft4 graphics: shadows={} ({} map, {}x range) draw-distance={}x drawable-limit={} highest-lod={} lod-selection-bias={} reflections={} anti-aliasing={}", shadow, shadow_map_size, shadow_distance, draw_distance_scale, drawable_reference_limit, highest_lod == "1", lod_distance, reflection, anti_aliasing);
