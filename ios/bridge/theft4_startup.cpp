@@ -160,7 +160,6 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const std::string_view aspect = aspect_override ? aspect_override : "original";
         if (aspect != "original" && aspect != "stretch")
             throw std::runtime_error("THEFT4_ASPECT_RATIO must be original or stretch");
-        Config::AspectRatio.Value = aspect == "stretch" ? EAspectRatio::Stretch : EAspectRatio::Original;
         REXCVAR_SET(gta4_aspect_ratio, std::string("16:9"));
         REXCVAR_SET(video_mode_width, int32_t(output.video_width));
         REXCVAR_SET(video_mode_height, int32_t(output.video_height));
