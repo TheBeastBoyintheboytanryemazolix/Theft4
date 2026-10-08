@@ -471,6 +471,7 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     UISwitch *_fsrBoost;
     UISwitch *_motionBlur;
     UISwitch *_depthOfField;
+    UISegmentedControl *_aspectRatio;
     UISegmentedControl *_shadowQuality;
     UISegmentedControl *_drawDistance;
     UISegmentedControl *_modelDetail;
@@ -693,6 +694,7 @@ static void bootEvent(void *context, const char *event) {
     _enhancedOutput = _bringupOverlay.enhancedOutput; _fsrBoost = _bringupOverlay.fsrBoost;
     _motionBlur = _bringupOverlay.motionBlur;
     _depthOfField = _bringupOverlay.depthOfField;
+    _aspectRatio = _bringupOverlay.aspectRatio;
     _shadowQuality = _bringupOverlay.shadowQuality;
     _drawDistance = _bringupOverlay.drawDistance;
     _modelDetail = _bringupOverlay.modelDetail;
@@ -725,9 +727,9 @@ static void bootEvent(void *context, const char *event) {
     }
     [self resetAutomaticCaptureForNewSession];
     NSArray<UISegmentedControl *> *graphicsChoices = @[
-        _shadowQuality, _drawDistance, _modelDetail, _reflectionQuality, _antiAliasing];
+        _aspectRatio, _shadowQuality, _drawDistance, _modelDetail, _reflectionQuality, _antiAliasing];
     NSArray<NSString *> *graphicsKeys = @[
-        @"Theft4ShadowQuality", @"Theft4DrawDistance", @"Theft4ModelDetail",
+        @"Theft4AspectRatio", @"Theft4ShadowQuality", @"Theft4DrawDistance", @"Theft4ModelDetail",
         @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
     for (NSUInteger i = 0; i < graphicsChoices.count; ++i) {
         UISegmentedControl *choice = graphicsChoices[i];
@@ -1459,9 +1461,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     [NSUserDefaults.standardUserDefaults setBool:_fsrBoost.on forKey:@"Theft4ExperimentalFSRBoost"];
     [NSUserDefaults.standardUserDefaults setBool:_motionBlur.on forKey:@"Theft4MotionBlur"];
     [NSUserDefaults.standardUserDefaults setBool:_depthOfField.on forKey:@"Theft4DepthOfField"];
-    NSArray<UISegmentedControl *> *choices = @[_shadowQuality, _drawDistance, _modelDetail,
+    NSArray<UISegmentedControl *> *choices = @[_aspectRatio, _shadowQuality, _drawDistance, _modelDetail,
         _reflectionQuality, _antiAliasing];
-    NSArray<NSString *> *keys = @[@"Theft4ShadowQuality", @"Theft4DrawDistance",
+    NSArray<NSString *> *keys = @[@"Theft4AspectRatio", @"Theft4ShadowQuality", @"Theft4DrawDistance",
         @"Theft4ModelDetail", @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
     for (NSUInteger i = 0; i < choices.count; ++i)
         [NSUserDefaults.standardUserDefaults setInteger:choices[i].selectedSegmentIndex forKey:keys[i]];
@@ -1487,6 +1489,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 - (void)applyOriginalGraphicsChoices {
     if (!_bringupOverlay.renderResolution || _executionAttempted) return;
     _bringupOverlay.renderResolution.selectedSegmentIndex = 1;
+    _aspectRatio.selectedSegmentIndex = 0;
     _bringupOverlay.fsrUpscaling.on = NO;
     _shadowQuality.selectedSegmentIndex = 1;
     _drawDistance.selectedSegmentIndex = 1;
@@ -2255,6 +2258,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         if (_performanceCapture.on) [self beginPublicationCapture];
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.
+        setenv("THEFT4_ASPECT_RATIO", _aspectRatio.selectedSegmentIndex == 1 ? "stretch" : "original", 1);
         setenv("THEFT4_ANISOTROPY", _anisotropicFiltering.on ? "4x" : "1x", 1);
         setenv("THEFT4_MOTION_BLUR", _motionBlur.on ? "1" : "0", 1);
         setenv("THEFT4_DEPTH_OF_FIELD", _depthOfField.on ? "1" : "0", 1);
@@ -2302,7 +2306,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         _anisotropicFiltering.enabled = NO;
         _motionBlur.enabled = NO;
         _depthOfField.enabled = NO;
-        for (UISegmentedControl *choice in @[_shadowQuality, _drawDistance, _modelDetail,
+        for (UISegmentedControl *choice in @[_aspectRatio, _shadowQuality, _drawDistance, _modelDetail,
                                               _reflectionQuality, _antiAliasing])
             choice.enabled = NO;
     }
