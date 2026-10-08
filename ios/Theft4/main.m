@@ -1523,10 +1523,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     _aspectRatio.selectedSegmentIndex = 0;
     if (_frameRate) _frameRate.selectedSegmentIndex = 0;
     _bringupOverlay.fsrUpscaling.on = YES;
-    _shadowQuality.selectedSegmentIndex = 1;
+    _shadowQuality.selectedSegmentIndex = 0;
     _drawDistance.selectedSegmentIndex = 0;
     _modelDetail.selectedSegmentIndex = 0;
-    _reflectionQuality.selectedSegmentIndex = 1;
+    _reflectionQuality.selectedSegmentIndex = 0;
     _antiAliasing.selectedSegmentIndex = 0;
     _anisotropicFiltering.on = NO;
     _motionBlur.on = NO;
@@ -1542,10 +1542,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (_frameRate) _frameRate.selectedSegmentIndex = 0;
     if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
     _bringupOverlay.fsrUpscaling.on = NO;
-    _shadowQuality.selectedSegmentIndex = 1;
+    _shadowQuality.selectedSegmentIndex = 2;
     _drawDistance.selectedSegmentIndex = 1;
     _modelDetail.selectedSegmentIndex = 1;
-    _reflectionQuality.selectedSegmentIndex = 0;
+    _reflectionQuality.selectedSegmentIndex = 1;
     _antiAliasing.selectedSegmentIndex = 0;
     _anisotropicFiltering.on = NO;
     _motionBlur.on = YES;
