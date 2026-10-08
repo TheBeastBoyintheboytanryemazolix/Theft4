@@ -68,6 +68,10 @@ REXCVAR_DECLARE(bool, gta4_force_highest_lod);
 REXCVAR_DECLARE(double, gta4_lod_selection_distance_scale);
 REXCVAR_DECLARE(double, gta4_draw_distance_scale);
 REXCVAR_DECLARE(uint32_t, gta4_drawable_reference_limit);
+REXCVAR_DECLARE(double, gta4_traffic_density_scale);
+REXCVAR_DECLARE(double, gta4_parked_car_density_scale);
+REXCVAR_DECLARE(double, gta4_ped_density_scale);
+REXCVAR_DECLARE(double, gta4_scenario_ped_density_scale);
 #endif
 
 extern const rex::PPCImageInfo PPCImageConfig;
@@ -223,10 +227,16 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (graphics_quality == "very-low") {
             REXCVAR_SET(gta4_native_upscaler, "fsr1");
             REXCVAR_SET(gta4_fsr1_quality, "performance");
+            REXCVAR_SET(video_mode_width, 640);
+            REXCVAR_SET(video_mode_height, 480);
             REXCVAR_SET(gta4_shadow_map_base_size, 128u);
             REXCVAR_SET(gta4_shadow_distance_scale, 0.50);
-            REXCVAR_SET(gta4_draw_distance_scale, 0.50);
-            REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
+            REXCVAR_SET(gta4_draw_distance_scale, 0.35);
+            REXCVAR_SET(gta4_drawable_reference_limit, 7000u);
+            REXCVAR_SET(gta4_traffic_density_scale, 0.35);
+            REXCVAR_SET(gta4_parked_car_density_scale, 0.25);
+            REXCVAR_SET(gta4_ped_density_scale, 0.35);
+            REXCVAR_SET(gta4_scenario_ped_density_scale, 0.35);
             REXCVAR_SET(gta4_force_highest_lod, false);
             REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
             REXCVAR_SET(gta4_reflection_resolution, "off");
