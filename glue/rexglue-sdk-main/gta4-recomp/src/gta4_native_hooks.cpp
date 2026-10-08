@@ -6536,6 +6536,15 @@ extern "C" void sub_828BD310(PPCContext& ctx, uint8_t* base) {
 extern "C" void sub_82271FF8(PPCContext& ctx, uint8_t* base) {
   const bool trace = IsNativeMode() && IsNativeLightLoopTraceEnabled();
   const uint32_t caller = uint32_t(ctx.lr);
+  const char* shadow_quality = std::getenv("THEFT4_SHADOW_QUALITY");
+  if (IsNativeMode() && shadow_quality && std::strcmp(shadow_quality, "off") == 0) {
+    // Tell the retail local-light selector that a shadow is unavailable.
+    // This skips local-light shadow sampling while the native shadow-map hook
+    // keeps a tiny 128px safety resource for ABI/resource stability.
+    ctx.r3.s32 = -1;
+    if (trace) TraceNativeLocalLightShadowUnavailable(base, ctx, caller);
+    return;
+  }
   __imp__sub_82271FF8(ctx, base);
   if (trace && ctx.r3.s32 == -1) {
     TraceNativeLocalLightShadowUnavailable(base, ctx, caller);
