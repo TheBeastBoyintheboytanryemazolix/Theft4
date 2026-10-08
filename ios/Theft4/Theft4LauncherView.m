@@ -82,6 +82,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     NSArray<UIButton *> *_tabs;
     NSArray<UIView *> *_pages;
     BOOL _active, _retired, _portraitMenu, _landscapePhoneMenu;
+    UISegmentedControl *_aspectRatio;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
