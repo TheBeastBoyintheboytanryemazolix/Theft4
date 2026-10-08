@@ -114,6 +114,18 @@ enum class EAspectRatio : uint32_t
     Stretch
 };
 
+enum class EFrameRateLimit : int32_t
+{
+    FPS30 = 30,
+    FPS60 = 60
+};
+
+enum class EGraphicsQuality : uint32_t
+{
+    Custom,
+    VeryLow
+};
+
 enum class ETripleBuffering : uint32_t
 {
     Auto,
