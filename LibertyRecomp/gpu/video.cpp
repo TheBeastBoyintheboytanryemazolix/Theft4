@@ -3716,7 +3716,8 @@ void Video::Present()
     cmd.type = RenderCommandType::BeginCommandList;
     g_renderQueue.enqueue(cmd);
 
-    if (Config::FPS >= FPS_MIN && Config::FPS < FPS_MAX)
+    const int32_t frameRate = static_cast<int32_t>(Config::FrameRate);
+    if (frameRate >= FPS_MIN && frameRate < FPS_MAX)
     {
         using namespace std::chrono_literals;
 
@@ -3736,7 +3737,7 @@ void Video::Present()
             s_next = now;
         }
 
-        s_next += 1000000000ns / Config::FPS;
+        s_next += 1000000000ns / frameRate;
     }
 
     g_presentProfiler.Reset();
