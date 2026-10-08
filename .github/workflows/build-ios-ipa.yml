@@ -1,5 +1,6 @@
 name: iOS IPA (EU retail + BC RGBA8 fallback)
 
+# Pushes to this branch intentionally trigger the IPA build.
 on:
   workflow_dispatch:
   push:
