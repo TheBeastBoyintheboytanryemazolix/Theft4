@@ -230,13 +230,17 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         _renderResolution = ChoiceControl(@[@"540p", @"720p", @"900p", @"1080p", @"Native"], @"renderResolution",
             @"Render resolution", @"The internal scene resolution. Applies at the next game launch.");
         _renderResolution.selectedSegmentIndex = 1;
+        _aspectRatio = ChoiceControl(@[@"16:9", @"Stretch"], @"aspectRatio",
+            @"Aspect ratio", @"16:9 keeps the game centered with its original widescreen shape. Stretch fills the entire display.");
+        _aspectRatio.selectedSegmentIndex = 0;
         _fsrUpscaling = [UISwitch new];
         _fsrUpscaling.onTintColor = Ink(0xB6884D);
         _fsrUpscaling.accessibilityIdentifier = @"settings.fsrUpscaling";
         _resolutionSummary = Copy(@"", 12, YES);
         _resolutionSummary.accessibilityIdentifier = @"settings.resolutionSummary";
         [graphicsRows addObjectsFromArray:@[
-            [self choice:@"INTERNAL RESOLUTION" detail:@"All choices use the stable centered 16:9 presentation. Native uses the largest 16:9 physical-pixel target that fits the display and disables FSR." control:_renderResolution],
+            [self choice:@"INTERNAL RESOLUTION" detail:@"Select the internal scene resolution." control:_renderResolution],
+            [self choice:@"ASPECT RATIO" detail:@"16:9 keeps the original widescreen presentation. Stretch fills the entire display by stretching the final game image." control:_aspectRatio],
             [self setting:@"FSR UPSCALING" detail:
                 (strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "a19") == 0 ||
                  strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "iphone-6gb") == 0 ||
