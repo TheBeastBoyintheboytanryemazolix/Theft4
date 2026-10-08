@@ -472,6 +472,8 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     UISwitch *_motionBlur;
     UISwitch *_depthOfField;
     UISegmentedControl *_aspectRatio;
+    UISegmentedControl *_frameRate;
+    UISegmentedControl *_graphicsQuality;
     UISegmentedControl *_shadowQuality;
     UISegmentedControl *_drawDistance;
     UISegmentedControl *_modelDetail;
@@ -695,6 +697,8 @@ static void bootEvent(void *context, const char *event) {
     _motionBlur = _bringupOverlay.motionBlur;
     _depthOfField = _bringupOverlay.depthOfField;
     _aspectRatio = _bringupOverlay.aspectRatio;
+    _frameRate = _bringupOverlay.frameRate;
+    _graphicsQuality = _bringupOverlay.graphicsQuality;
     _shadowQuality = _bringupOverlay.shadowQuality;
     _drawDistance = _bringupOverlay.drawDistance;
     _modelDetail = _bringupOverlay.modelDetail;
@@ -726,11 +730,17 @@ static void bootEvent(void *context, const char *event) {
         [toggle addTarget:self action:@selector(displaySettingsChanged:) forControlEvents:UIControlEventValueChanged];
     }
     [self resetAutomaticCaptureForNewSession];
-    NSArray<UISegmentedControl *> *graphicsChoices = @[
-        _aspectRatio, _shadowQuality, _drawDistance, _modelDetail, _reflectionQuality, _antiAliasing];
-    NSArray<NSString *> *graphicsKeys = @[
+    NSMutableArray<UISegmentedControl *> *graphicsChoices = [NSMutableArray arrayWithArray:@[
+        _aspectRatio, _shadowQuality, _drawDistance, _modelDetail, _reflectionQuality, _antiAliasing]];
+    NSMutableArray<NSString *> *graphicsKeys = [NSMutableArray arrayWithArray:@[
         @"Theft4AspectRatio", @"Theft4ShadowQuality", @"Theft4DrawDistance", @"Theft4ModelDetail",
         @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
+    if (_frameRate && _graphicsQuality) {
+        [graphicsChoices insertObject:_frameRate atIndex:1];
+        [graphicsKeys insertObject:@"Theft4FrameRate" atIndex:1];
+        [graphicsChoices insertObject:_graphicsQuality atIndex:2];
+        [graphicsKeys insertObject:@"Theft4GraphicsQuality" atIndex:2];
+    }
     for (NSUInteger i = 0; i < graphicsChoices.count; ++i) {
         UISegmentedControl *choice = graphicsChoices[i];
         choice.selectedSegmentIndex = MAX(0, MIN(choice.numberOfSegments - 1,
@@ -1449,7 +1459,13 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 }
 
 - (void)displaySettingsChanged:(UIControl *)sender {
-    if (sender) [NSUserDefaults.standardUserDefaults setObject:@"custom" forKey:@"Theft4GraphicsPreset"];
+    if (sender == _graphicsQuality && _graphicsQuality.selectedSegmentIndex == 1) {
+        [self applyVeryLowGraphicsChoices];
+        [NSUserDefaults.standardUserDefaults setObject:@"very-low" forKey:@"Theft4GraphicsPreset"];
+    } else if (sender) {
+        [NSUserDefaults.standardUserDefaults setObject:@"custom" forKey:@"Theft4GraphicsPreset"];
+        if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
+    }
     if (_bringupOverlay.renderResolution.selectedSegmentIndex == 4)
         _bringupOverlay.fsrUpscaling.on = NO;
     [self applyLimitedMemoryCaps];
@@ -1467,6 +1483,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         @"Theft4ModelDetail", @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
     for (NSUInteger i = 0; i < choices.count; ++i)
         [NSUserDefaults.standardUserDefaults setInteger:choices[i].selectedSegmentIndex forKey:keys[i]];
+    if (_frameRate)
+        [NSUserDefaults.standardUserDefaults setInteger:_frameRate.selectedSegmentIndex forKey:@"Theft4FrameRate"];
+    if (_graphicsQuality)
+        [NSUserDefaults.standardUserDefaults setInteger:_graphicsQuality.selectedSegmentIndex forKey:@"Theft4GraphicsQuality"];
     if (_bringupOverlay.renderResolution) {
         [NSUserDefaults.standardUserDefaults setInteger:_bringupOverlay.renderHeight forKey:@"Theft4LabRenderHeight"];
         [NSUserDefaults.standardUserDefaults setBool:_bringupOverlay.fsrUpscaling.on forKey:@"Theft4LabFSREnabled"];
@@ -1486,10 +1506,30 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     _fpsLastTime = CACurrentMediaTime();
 }
 
+- (void)applyVeryLowGraphicsChoices {
+    if (!_bringupOverlay.renderResolution || _executionAttempted) return;
+    _bringupOverlay.renderResolution.selectedSegmentIndex = 0;
+    _aspectRatio.selectedSegmentIndex = 0;
+    if (_frameRate) _frameRate.selectedSegmentIndex = 0;
+    _bringupOverlay.fsrUpscaling.on = YES;
+    _shadowQuality.selectedSegmentIndex = 0;
+    _drawDistance.selectedSegmentIndex = 0;
+    _modelDetail.selectedSegmentIndex = 0;
+    _reflectionQuality.selectedSegmentIndex = 0;
+    _antiAliasing.selectedSegmentIndex = 0;
+    _anisotropicFiltering.on = NO;
+    _motionBlur.on = NO;
+    _depthOfField.on = NO;
+    _enhancedOutput.on = NO;
+    _fsrBoost.on = NO;
+}
+
 - (void)applyOriginalGraphicsChoices {
     if (!_bringupOverlay.renderResolution || _executionAttempted) return;
     _bringupOverlay.renderResolution.selectedSegmentIndex = 1;
     _aspectRatio.selectedSegmentIndex = 0;
+    if (_frameRate) _frameRate.selectedSegmentIndex = 0;
+    if (_graphicsQuality) _graphicsQuality.selectedSegmentIndex = 0;
     _bringupOverlay.fsrUpscaling.on = NO;
     _shadowQuality.selectedSegmentIndex = 1;
     _drawDistance.selectedSegmentIndex = 1;
@@ -2259,6 +2299,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.
         setenv("THEFT4_ASPECT_RATIO", _aspectRatio.selectedSegmentIndex == 1 ? "stretch" : "original", 1);
+        setenv("THEFT4_FRAME_RATE", (_frameRate && _frameRate.selectedSegmentIndex == 1) ? "60" : "30", 1);
+        setenv("THEFT4_GRAPHICS_QUALITY", (_graphicsQuality && _graphicsQuality.selectedSegmentIndex == 1) ? "very-low" : "custom", 1);
         setenv("THEFT4_ANISOTROPY", _anisotropicFiltering.on ? "4x" : "1x", 1);
         setenv("THEFT4_MOTION_BLUR", _motionBlur.on ? "1" : "0", 1);
         setenv("THEFT4_DEPTH_OF_FIELD", _depthOfField.on ? "1" : "0", 1);
