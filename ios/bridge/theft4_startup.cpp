@@ -188,11 +188,12 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const char* shadow_override = std::getenv("THEFT4_SHADOW_QUALITY");
         const std::string_view shadow = shadow_override ? shadow_override : "original";
         uint32_t shadow_map_size = 0; double shadow_distance = 0.0;
-        if (shadow == "optimized") { shadow_map_size = 128; shadow_distance = 0.75; }
+        if (shadow == "off") { shadow_map_size = 128; shadow_distance = 0.50; }
+        else if (shadow == "optimized") { shadow_map_size = 128; shadow_distance = 0.75; }
         else if (shadow == "original") { shadow_map_size = 256; shadow_distance = 1.0; }
         else if (shadow == "enhanced") { shadow_map_size = 512; shadow_distance = 1.0; }
         else if (shadow == "ultra") { shadow_map_size = 1024; shadow_distance = 1.5; }
-        else throw std::runtime_error("THEFT4_SHADOW_QUALITY must be optimized, original, enhanced, or ultra");
+        else throw std::runtime_error("THEFT4_SHADOW_QUALITY must be off, optimized, original, enhanced, or ultra");
         REXCVAR_SET(gta4_shadow_map_base_size, shadow_map_size); REXCVAR_SET(gta4_shadow_distance_scale, shadow_distance);
         const char* draw_distance_override = std::getenv("THEFT4_DRAW_DISTANCE");
         const std::string_view draw_distance = draw_distance_override ? draw_distance_override : "1";
