@@ -229,7 +229,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
 
     NSMutableArray<UIView *> *graphicsRows = [NSMutableArray new];
     if (lab) {
-        _renderResolution = ChoiceControl(@[@"540p", @"720p", @"900p", @"1080p", @"Native"], @"renderResolution",
+        _renderResolution = ChoiceControl(@[@"320×240", @"540p", @"720p", @"900p", @"1080p", @"Native"], @"renderResolution",
             @"Render resolution", @"The internal scene resolution. Applies at the next game launch.");
         _renderResolution.selectedSegmentIndex = 1;
         _aspectRatio = ChoiceControl(@[@"16:9", @"Stretch"], @"aspectRatio",
@@ -600,8 +600,8 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
 
 - (uint32_t)renderHeight {
     NSInteger index = _renderResolution.selectedSegmentIndex;
-    return index == 0 ? 540 : index == 2 ? 900 : index == 3 ? 1080 :
-        index == 4 ? THEFT4_LAB_NATIVE_16_9 : 720;
+    return index == 0 ? 240 : index == 1 ? 540 : index == 3 ? 900 : index == 4 ? 1080 :
+        index == 5 ? THEFT4_LAB_NATIVE_16_9 : 720;
 }
 
 - (void)refreshConfigurationSummary {
@@ -635,7 +635,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     NSString *distance = @[@"OPTIMIZED DISTANCE", @"ORIGINAL DISTANCE", @"2× DISTANCE", @"3× DISTANCE"]
         [MAX(0, _drawDistance.selectedSegmentIndex)];
     if (_renderResolution) {
-        const BOOL native = _renderResolution.selectedSegmentIndex == 4;
+        const BOOL native = _renderResolution.selectedSegmentIndex == 5;
         _fsrUpscaling.enabled = !native;
         if (native) _fsrUpscaling.on = NO;
         UIScreen *screen = self.window.screen ?: UIScreen.mainScreen;
