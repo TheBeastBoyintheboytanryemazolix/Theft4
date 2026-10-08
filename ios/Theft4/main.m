@@ -504,6 +504,10 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     BOOL _baseGameChecked;
     BOOL _baseGameCheckAttempted;
     BOOL _setupValidated;
+    NSLayoutConstraint *_metalAspectConstraint;
+    NSLayoutConstraint *_metalWidthLimitConstraint;
+    NSLayoutConstraint *_metalHeightLimitConstraint;
+    NSLayoutConstraint *_metalPreferredWidthConstraint;
 }
 - (void)record:(NSString *)event;
 - (void)activate;
@@ -537,6 +541,7 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
 - (void)applyLowPowerPreset;
 - (void)applyLimitedMemoryCaps;
 - (void)syncA19OutputChoice;
+- (void)applySelectedAspectRatioPresentation;
 #ifdef THEFT4_INTRO_TEST_BUILD
 - (void)runIntroTestImportSmokeIfRequested;
 #endif
@@ -657,17 +662,23 @@ static void bootEvent(void *context, const char *event) {
     _metalView.translatesAutoresizingMaskIntoConstraints = NO;
     _metalView.userInteractionEnabled = NO;
     [self.view addSubview:_metalView];
+    _metalAspectConstraint = [_metalView.widthAnchor
+        constraintEqualToAnchor:_metalView.heightAnchor multiplier:(16.0 / 9.0)];
+    _metalWidthLimitConstraint = [_metalView.widthAnchor
+        constraintLessThanOrEqualToAnchor:self.view.widthAnchor];
+    _metalHeightLimitConstraint = [_metalView.heightAnchor
+        constraintLessThanOrEqualToAnchor:self.view.heightAnchor];
     [NSLayoutConstraint activateConstraints:@[
         [_metalView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [_metalView.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-        [_metalView.widthAnchor constraintEqualToAnchor:_metalView.heightAnchor multiplier:(16.0 / 9.0)],
-        [_metalView.widthAnchor constraintLessThanOrEqualToAnchor:self.view.widthAnchor],
-        [_metalView.heightAnchor constraintLessThanOrEqualToAnchor:self.view.heightAnchor]
+        _metalAspectConstraint,
+        _metalWidthLimitConstraint,
+        _metalHeightLimitConstraint
     ]];
-    NSLayoutConstraint *preferFullWidth =
-        [_metalView.widthAnchor constraintEqualToAnchor:self.view.widthAnchor];
-    preferFullWidth.priority = 999;
-    preferFullWidth.active = YES;
+    _metalPreferredWidthConstraint = [_metalView.widthAnchor
+        constraintEqualToAnchor:self.view.widthAnchor];
+    _metalPreferredWidthConstraint.priority = 999;
+    _metalPreferredWidthConstraint.active = YES;
     theft4_metal_bind_layer((__bridge void *)_metalView.layer);
     _bringupOverlay = [Theft4LauncherView new];
     _bringupOverlay.translatesAutoresizingMaskIntoConstraints = NO;
@@ -2267,6 +2278,36 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     [self startGamePreparation:_gameURL execute:YES];
 }
 
+- (void)applySelectedAspectRatioPresentation {
+    const BOOL stretch = _aspectRatio && _aspectRatio.selectedSegmentIndex == 1;
+    if (stretch) {
+        [_metalView.superview layoutIfNeeded];
+        [NSLayoutConstraint deactivateConstraints:@[
+            _metalAspectConstraint, _metalWidthLimitConstraint,
+            _metalHeightLimitConstraint, _metalPreferredWidthConstraint
+        ]];
+        [NSLayoutConstraint activateConstraints:@[
+            [_metalView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+            [_metalView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+            [_metalView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+            [_metalView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
+        ]];
+        ((CAMetalLayer *)_metalView.layer).contentsGravity = kCAGravityResize;
+        [self.view layoutIfNeeded];
+        [self record:@"graphics.aspect_ratio_stretch_enabled"];
+    } else {
+        // Original keeps the game's authored 16:9 presentation and centered
+        // pillar/letterboxing rather than stretching the final image.
+        ((CAMetalLayer *)_metalView.layer).contentsGravity = kCAGravityResizeAspect;
+        [NSLayoutConstraint activateConstraints:@[
+            _metalAspectConstraint, _metalWidthLimitConstraint,
+            _metalHeightLimitConstraint, _metalPreferredWidthConstraint
+        ]];
+        [self.view layoutIfNeeded];
+        [self record:@"graphics.aspect_ratio_original_enabled"];
+    }
+}
+
 - (void)startGamePreparation:(NSURL *)game execute:(BOOL)execute {
 #ifdef THEFT4_HAS_GAME_LOADER
     if (_loading || _executionAttempted || _saveTransferBusy || !game || !_supportURL || _failure) return;
@@ -2299,6 +2340,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.
         setenv("THEFT4_ASPECT_RATIO", _aspectRatio.selectedSegmentIndex == 1 ? "stretch" : "original", 1);
+        // The renderer's output policy uses the Metal view's actual native
+        // extent. Make the selected presentation geometry real before measuring
+        // that extent, so Stretch reaches the full display while Original stays 16:9.
+        [self applySelectedAspectRatioPresentation];
         setenv("THEFT4_FRAME_RATE", (_frameRate && _frameRate.selectedSegmentIndex == 1) ? "60" : "30", 1);
         setenv("THEFT4_GRAPHICS_QUALITY", (_graphicsQuality && _graphicsQuality.selectedSegmentIndex == 1) ? "very-low" : "custom", 1);
         setenv("THEFT4_ANISOTROPY", _anisotropicFiltering.on ? "4x" : "1x", 1);
