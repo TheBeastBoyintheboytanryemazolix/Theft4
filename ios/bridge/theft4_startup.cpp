@@ -214,7 +214,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXCVAR_SET(gta4_lod_selection_distance_scale, lod_distance == "1.75" ? 1.75 : 1.0);
         const char* reflection_override = std::getenv("THEFT4_REFLECTION_RESOLUTION");
         const std::string_view reflection = reflection_override ? reflection_override : "original";
-        if (reflection != "original" && reflection != "1080p" && reflection != "full") throw std::runtime_error("THEFT4_REFLECTION_RESOLUTION must be original, 1080p, or full");
+        if (reflection != "off" && reflection != "original" && reflection != "1080p" && reflection != "full") throw std::runtime_error("THEFT4_REFLECTION_RESOLUTION must be off, original, 1080p, or full");
         REXCVAR_SET(gta4_reflection_resolution, std::string(reflection));
         const char* anti_aliasing_override = std::getenv("THEFT4_ANTI_ALIASING");
         const std::string_view anti_aliasing = anti_aliasing_override ? anti_aliasing_override : "smaa";
