@@ -344,6 +344,18 @@ CONFIG_DEFINE_ENUM_TEMPLATE(EAspectRatio)
     { "Stretch",  EAspectRatio::Stretch }
 };
 
+CONFIG_DEFINE_ENUM_TEMPLATE(EFrameRateLimit)
+{
+    { "30 FPS", EFrameRateLimit::FPS30 },
+    { "60 FPS", EFrameRateLimit::FPS60 }
+};
+
+CONFIG_DEFINE_ENUM_TEMPLATE(EGraphicsQuality)
+{
+    { "Custom",  EGraphicsQuality::Custom },
+    { "Very Low", EGraphicsQuality::VeryLow }
+};
+
 CONFIG_DEFINE_ENUM_TEMPLATE(ETripleBuffering)
 {
     { "Auto", ETripleBuffering::Auto },
@@ -1014,6 +1026,39 @@ void Config::CreateCallbacks()
     Config::MinResolutionScale.Callback = [](ConfigDef<float>* def)
     {
         def->Value = std::clamp(def->Value, 0.25f, 1.0f);
+    };
+
+    Config::GraphicsQuality.Callback = [](ConfigDef<EGraphicsQuality>* def)
+    {
+        if (def->Value != EGraphicsQuality::VeryLow)
+            return;
+
+        // Functional Very Low preset: reduce internal resolution, AA,
+        // shadows, reflections, post-processing, and world/detail distances.
+        Config::ResolutionScale.Value = 0.50f;
+        Config::AntiAliasing.Value = EAntiAliasing::Off;
+        Config::TransparencyAntiAliasing.Value = false;
+        Config::AnisotropicFiltering.Value = 1;
+        Config::DynamicResolution.Value = EDynamicResolution::Off;
+        Config::MinResolutionScale.Value = 0.50f;
+
+        Config::ShadowResolution.Value = EShadowResolution::x512;
+        Config::ShadowFilter.Value = EShadowFilter::Off;
+        Config::ReflectionResolution.Value = EReflectionResolution::Eighth;
+        Config::RadialBlur.Value = ERadialBlur::Off;
+        Config::MotionBlur.Value = EMotionBlur::Off;
+        Config::SSAA.Value = ESSAA::Off;
+        Config::DepthOfField.Value = EDepthOfField::Off;
+        Config::FilmGrain.Value = EFilmGrain::Off;
+        Config::ChromaticAberration.Value = EChromaticAberration::Off;
+        Config::SSAO.Value = ESSAO::Off;
+        Config::EnableBloom.Value = false;
+        Config::EnableSunShafts.Value = false;
+
+        Config::RenderDistanceMultiplier.Value = 0.50f;
+        Config::LODDistanceMultiplier.Value = 0.50f;
+        Config::StreamingDistanceMultiplier.Value = 0.50f;
+        Config::FarClipMultiplier.Value = 0.50f;
     };
 
     // Target frame time validation (4.0 - 100.0 ms, i.e., 10-250 FPS)
