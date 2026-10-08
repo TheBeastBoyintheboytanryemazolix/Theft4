@@ -2636,6 +2636,12 @@ std::string_view GetReflectionResolutionSelection(ReflectionFamily family) {
 
 std::pair<uint32_t, uint32_t> GetReflectionPhysicalExtent(const ReflectionResourceName& resource) {
   const std::string_view selection = GetReflectionResolutionSelection(resource.family);
+  if (selection == "off") {
+    // Keep the guest-visible resource identity and dimensions intact, but make
+    // the native capture target a tiny surface. This removes almost all pixel
+    // cost from the reflection passes without changing guest resource ABI.
+    return {1, 1};
+  }
   if (selection == "original") {
     return {resource.logical_width, resource.logical_height};
   }
