@@ -13,6 +13,7 @@ TEST_CASE("GTA IV draw-distance policy publishes configured engine scales",
   CHECK(std::bit_cast<uint32_t>(draw_distance::ResolveEngineScale(1.0)) == 0x3F800000);
   CHECK(std::bit_cast<uint32_t>(draw_distance::ResolveEngineScale(3.0)) == 0x40400000);
   CHECK(std::bit_cast<uint32_t>(draw_distance::ResolveEngineScale(4.0)) == 0x40800000);
+  CHECK(std::bit_cast<uint32_t>(draw_distance::ResolveEngineScale(0.35)) == 0x3EB33333);
 }
 
 TEST_CASE("GTA IV draw-distance policy rejects invalid host scales",
