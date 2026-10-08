@@ -289,14 +289,14 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         ]];
     }
 
-    _shadowQuality = ChoiceControl(@[@"Optimized", @"Original", @"Enhanced", @"Ultra"], @"shadowQuality",
+    _shadowQuality = ChoiceControl(@[@"Off", @"Optimized", @"Original", @"Enhanced", @"Ultra"], @"shadowQuality",
         @"Dynamic shadows", @"Optimized is pending validation of distant shadow cache reuse.");
-    [_shadowQuality setEnabled:NO forSegmentAtIndex:0];
+    [_shadowQuality setEnabled:NO forSegmentAtIndex:1];
     _drawDistance = ChoiceControl(@[@"Optimized", @"Original", @"2×", @"3×"], @"drawDistance",
         @"Draw distance", @"Optimized reduces world distance and distant local illumination.");
     _modelDetail = ChoiceControl(@[@"Lower", @"Original", @"Highest"], @"modelDetail",
         @"Model detail", @"Lower selects simpler resident meshes sooner without changing draw distance.");
-    _reflectionQuality = ChoiceControl(@[@"Original", @"1080p", @"Full"], @"reflectionQuality",
+    _reflectionQuality = ChoiceControl(@[@"Off", @"Original", @"1080p", @"Full"], @"reflectionQuality",
         @"Reflection resolution", @"Set the renderer's native reflection target preset.");
     _antiAliasing = ChoiceControl(@[@"Off", @"FXAA", @"SMAA"], @"antiAliasing",
         @"Anti-aliasing", @"Select the native renderer's edge smoothing mode.");
@@ -606,6 +606,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
 
 - (void)refreshConfigurationSummary {
     NSArray<NSString *> *shadowMetrics = @[
+        @"Shadow maps disabled · local-light shadows skipped",
         @"128 base · 1024 × 1024 cache · 0.75× range",
         @"256 base · 2048 × 2048 cache · 1× range",
         @"512 base · 4096 × 4096 cache · 1× range",
@@ -616,20 +617,21 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         @"2× world distance · 17,000 drawable references",
         @"3× world distance · 20,000 drawable references"];
     NSArray<NSString *> *reflectionMetrics = @[
+        @"Reflection capture targets reduced to 1 × 1",
         @"320 × 180 mirror/water · 256² environment",
         @"1920 × 1080 mirror/water · 1024² environment",
         @"2560 × 1440 mirror/water · 2048² environment"];
-    _shadowMetrics.text = shadowMetrics[MAX(0, MIN(3, _shadowQuality.selectedSegmentIndex))];
+    _shadowMetrics.text = shadowMetrics[MAX(0, MIN(4, _shadowQuality.selectedSegmentIndex))];
     _distanceMetrics.text = distanceMetrics[MAX(0, MIN(3, _drawDistance.selectedSegmentIndex))];
     _modelMetrics.text = _modelDetail.selectedSegmentIndex == 0
         ? @"Earlier transition to simpler resident meshes · 1.75× selector input"
         : _modelDetail.selectedSegmentIndex == 2
             ? @"Highest resident mesh at any distance" : @"Title-controlled model LOD";
-    _reflectionMetrics.text = reflectionMetrics[MAX(0, MIN(2, _reflectionQuality.selectedSegmentIndex))];
+    _reflectionMetrics.text = reflectionMetrics[MAX(0, MIN(3, _reflectionQuality.selectedSegmentIndex))];
     _aaMetrics.text = @[@"No edge filter", @"FXAA · single lightweight pass",
                         @"SMAA 1× · high preset"][MAX(0, MIN(2, _antiAliasing.selectedSegmentIndex))];
-    NSString *shadow = @[@"OPTIMIZED SHADOWS", @"ORIGINAL SHADOWS", @"ENHANCED SHADOWS", @"ULTRA SHADOWS"]
-        [MAX(0, _shadowQuality.selectedSegmentIndex)];
+    NSString *shadow = @[@"SHADOWS OFF", @"OPTIMIZED SHADOWS", @"ORIGINAL SHADOWS", @"ENHANCED SHADOWS", @"ULTRA SHADOWS"]
+        [MIN(4, MAX(0, _shadowQuality.selectedSegmentIndex))];
     NSString *distance = @[@"OPTIMIZED DISTANCE", @"ORIGINAL DISTANCE", @"2× DISTANCE", @"3× DISTANCE"]
         [MAX(0, _drawDistance.selectedSegmentIndex)];
     if (_renderResolution) {
