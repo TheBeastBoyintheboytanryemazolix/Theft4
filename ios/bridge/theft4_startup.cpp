@@ -234,7 +234,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXCVAR_SET(gta4_lod_selection_distance_scale, lod_distance == "1.75" ? 1.75 : 1.0);
         const char* reflection_override = std::getenv("THEFT4_REFLECTION_RESOLUTION");
         const std::string_view reflection = reflection_override ? reflection_override : "original";
-        if (reflection != "off" && reflection != "original" && reflection != "1080p" && reflection != "full") throw std::runtime_error("THEFT4_REFLECTION_RESOLUTION must be off, original, 1080p, or full");
+        if (reflection != "off" && reflection != "low" && reflection != "original" && reflection != "1080p" && reflection != "full") throw std::runtime_error("THEFT4_REFLECTION_RESOLUTION must be off, low, original, 1080p, or full");
         REXCVAR_SET(gta4_reflection_resolution, std::string(reflection));
         const char* anti_aliasing_override = std::getenv("THEFT4_ANTI_ALIASING");
         const std::string_view anti_aliasing = anti_aliasing_override ? anti_aliasing_override : "smaa";
@@ -253,10 +253,11 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             REXCVAR_SET(gta4_scenario_ped_density_scale, 0.35);
             REXCVAR_SET(gta4_force_highest_lod, false);
             REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
-            REXCVAR_SET(gta4_reflection_resolution, "off");
-            REXCVAR_SET(gta4_mirror_reflection_resolution, "off");
-            REXCVAR_SET(gta4_water_reflection_resolution, "off");
-            REXCVAR_SET(gta4_environment_reflection_resolution, "off");
+            // Keep reflections enabled for visual continuity, but render them at a tiny fixed target.
+            REXCVAR_SET(gta4_reflection_resolution, "low");
+            REXCVAR_SET(gta4_mirror_reflection_resolution, "low");
+            REXCVAR_SET(gta4_water_reflection_resolution, "low");
+            REXCVAR_SET(gta4_environment_reflection_resolution, "low");
             REXCVAR_SET(gta4_reflection_aa, "off");
             REXCVAR_SET(gta4_native_anti_aliasing, "off");
             REXLOG_INFO("Theft4 A16 Very Low optimization enabled");
