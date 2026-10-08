@@ -759,6 +759,38 @@ CONFIG_DEFINE_ENUM_LOCALE(EAspectRatio)
     }
 };
 
+CONFIG_DEFINE_LOCALE(FrameRate)
+{
+    { ELanguage::English, { "Frame Rate", "Choose the maximum game frame rate." } }
+};
+
+CONFIG_DEFINE_ENUM_LOCALE(EFrameRateLimit)
+{
+    {
+        ELanguage::English,
+        {
+            { EFrameRateLimit::FPS30, { "30 FPS", "30 FPS: lower performance load and steadier frame pacing." } },
+            { EFrameRateLimit::FPS60, { "60 FPS", "60 FPS: higher frame rate when the device can sustain it." } }
+        }
+    }
+};
+
+CONFIG_DEFINE_LOCALE(GraphicsQuality)
+{
+    { ELanguage::English, { "Graphics Quality", "Apply a graphics preset that changes real rendering settings." } }
+};
+
+CONFIG_DEFINE_ENUM_LOCALE(EGraphicsQuality)
+{
+    {
+        ELanguage::English,
+        {
+            { EGraphicsQuality::Custom,  { "Custom", "Custom: keep the individual graphics settings you selected." } },
+            { EGraphicsQuality::VeryLow, { "Very Low", "Very Low: lowers internal resolution, shadows, reflections, effects, AA, and world/detail distances." } }
+        }
+    }
+};
+
 CONFIG_DEFINE_LOCALE(ResolutionScale)
 {
     { ELanguage::English,  { "Resolution Scale", "Adjust the internal resolution of the game." } },
