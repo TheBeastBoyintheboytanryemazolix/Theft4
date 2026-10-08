@@ -243,12 +243,10 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (graphics_quality == "very-low") {
             REXCVAR_SET(gta4_native_upscaler, "fsr1");
             REXCVAR_SET(gta4_fsr1_quality, "performance");
-            REXCVAR_SET(video_mode_width, 640);
-            REXCVAR_SET(video_mode_height, 480);
-            REXCVAR_SET(gta4_shadow_map_base_size, 128u);
+                        REXCVAR_SET(gta4_shadow_map_base_size, 128u);
             REXCVAR_SET(gta4_shadow_distance_scale, 0.50);
-            REXCVAR_SET(gta4_draw_distance_scale, 0.35);
-            REXCVAR_SET(gta4_drawable_reference_limit, 7000u);
+            REXCVAR_SET(gta4_draw_distance_scale, 0.50);
+            REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
             REXCVAR_SET(gta4_traffic_density_scale, 0.35);
             REXCVAR_SET(gta4_parked_car_density_scale, 0.25);
             REXCVAR_SET(gta4_ped_density_scale, 0.35);
