@@ -1523,10 +1523,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     _aspectRatio.selectedSegmentIndex = 0;
     if (_frameRate) _frameRate.selectedSegmentIndex = 0;
     _bringupOverlay.fsrUpscaling.on = YES;
-    _shadowQuality.selectedSegmentIndex = 0;
+    _shadowQuality.selectedSegmentIndex = 1;
     _drawDistance.selectedSegmentIndex = 0;
     _modelDetail.selectedSegmentIndex = 0;
-    _reflectionQuality.selectedSegmentIndex = 0;
+    _reflectionQuality.selectedSegmentIndex = 1;
     _antiAliasing.selectedSegmentIndex = 0;
     _anisotropicFiltering.on = NO;
     _motionBlur.on = NO;
@@ -2350,9 +2350,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         setenv("THEFT4_MOTION_BLUR", _motionBlur.on ? "1" : "0", 1);
         setenv("THEFT4_DEPTH_OF_FIELD", _depthOfField.on ? "1" : "0", 1);
         setenv("THEFT4_SHADOW_CACHE_TRACE", "1", 1); // 0.2.1 diagnostic build only.
-        const char *shadowPresets[] = {"optimized", "original", "enhanced", "ultra"};
+        const char *shadowPresets[] = {"off", "optimized", "original", "enhanced", "ultra"};
         const char *distancePresets[] = {"0.70", "1", "2", "3"};
-        const char *reflectionPresets[] = {"original", "1080p", "full"};
+        const char *reflectionPresets[] = {"off", "original", "1080p", "full"};
         const char *antiAliasingPresets[] = {"off", "fxaa", "smaa"};
         setenv("THEFT4_SHADOW_QUALITY", shadowPresets[_shadowQuality.selectedSegmentIndex], 1);
         setenv("THEFT4_DRAW_DISTANCE", distancePresets[_drawDistance.selectedSegmentIndex], 1);
