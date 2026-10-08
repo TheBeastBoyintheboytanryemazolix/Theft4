@@ -1,4 +1,5 @@
 #include "theft4_boot.h"
+#include "user/config.h"
 #include "theft4_bootstrap_audio.h"
 #include "theft4_bootstrap_graphics.h"
 #include "theft4_bootstrap_input.h"
@@ -146,6 +147,11 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (depth_of_field_value && std::string_view(depth_of_field_value) != "0" && std::string_view(depth_of_field_value) != "1") throw std::runtime_error("THEFT4_DEPTH_OF_FIELD must be 0 or 1");
         REXLOG_INFO("Theft4 depth of field: {} (native title multiplier)", depth_of_field_value && std::string_view(depth_of_field_value) == "0" ? "off" : "on");
         const auto output = theft4_metal_get_output_policy();
+        const char* aspect_override = std::getenv("THEFT4_ASPECT_RATIO");
+        const std::string_view aspect = aspect_override ? aspect_override : "original";
+        if (aspect != "original" && aspect != "stretch")
+            throw std::runtime_error("THEFT4_ASPECT_RATIO must be original or stretch");
+        Config::AspectRatio.Value = aspect == "stretch" ? EAspectRatio::Stretch : EAspectRatio::Original;
         REXCVAR_SET(gta4_aspect_ratio, std::string("16:9"));
         REXCVAR_SET(video_mode_width, int32_t(output.video_width));
         REXCVAR_SET(video_mode_height, int32_t(output.video_height));
