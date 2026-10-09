@@ -241,25 +241,26 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         if (anti_aliasing != "off" && anti_aliasing != "fxaa" && anti_aliasing != "smaa") throw std::runtime_error("THEFT4_ANTI_ALIASING must be off, fxaa, or smaa");
         REXCVAR_SET(gta4_native_anti_aliasing, std::string(anti_aliasing));
         if (graphics_quality == "very-low") {
-            REXCVAR_SET(gta4_native_upscaler, "fsr1");
-            REXCVAR_SET(gta4_fsr1_quality, "performance");
-            // Use the existing 720p output policy's logical dimensions as the
-            // input to FSR Performance. This lowers scene rendering resolution
-            // without changing the Metal drawable size or forcing an unusual mode.
-            REXCVAR_SET(video_mode_width, int32_t(output.render_width));
-            REXCVAR_SET(video_mode_height, int32_t(output.render_height));
+            // Keep the established output/render policy and leave shadow and
+            // reflection quality on their normal configured values. Avoid
+            // changing render dimensions/upscaler here; the previous override
+            // caused instability on some devices.
             REXCVAR_SET(gta4_anisotropic_filtering, std::string("1x"));
-            REXCVAR_SET(gta4_draw_distance_scale, 0.50);
+            // 0.35 is the lowest scale accepted by ResolveEngineScale().
+            REXCVAR_SET(gta4_draw_distance_scale, 0.35);
+            // Retain the previously used reference budget rather than reducing
+            // it further, which could destabilize world-object bookkeeping.
             REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
             REXCVAR_SET(gta4_force_highest_lod, false);
-            REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
-            // Disable shadowing for the Very Low preset while keeping reflection
-            // settings untouched. A zero distance is handled by the native hook
-            // as an explicit no-shadow range rather than falling back to stock.
-            REXCVAR_SET(gta4_shadow_map_base_size, 128u);
-            REXCVAR_SET(gta4_shadow_distance_scale, 0.0);
+            REXCVAR_SET(gta4_lod_selection_distance_scale, 1.0);
             REXCVAR_SET(gta4_native_anti_aliasing, "off");
-            REXLOG_INFO("Theft4 A16 Very Low optimization enabled: FSR Performance, reduced scene resolution, 1x anisotropy, shadows off, AA off; reflection selections preserved");
+            // These multipliers are consumed by the existing population hooks.
+            // Keep some ambient traffic/peds so missions and world scripts work.
+            REXCVAR_SET(gta4_traffic_density_scale, 0.35);
+            REXCVAR_SET(gta4_parked_car_density_scale, 0.25);
+            REXCVAR_SET(gta4_ped_density_scale, 0.35);
+            REXCVAR_SET(gta4_scenario_ped_density_scale, 0.35);
+            REXLOG_INFO("Theft4 Very Low: stock output/render policy and configured shadows/reflections preserved; draw-distance=0.35, drawable-limit=9000, anisotropy=1x, AA=off, reduced population");
         }
 
         REXLOG_INFO("Theft4 graphics: shadows={} ({} map, {}x range) draw-distance={}x drawable-limit={} highest-lod={} lod-selection-bias={} reflections={} anti-aliasing={}", shadow, shadow_map_size, shadow_distance, draw_distance_scale, drawable_reference_limit, highest_lod == "1", lod_distance, reflection, anti_aliasing);
