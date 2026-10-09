@@ -3528,12 +3528,19 @@ void Video::Present()
     // Post-Processing Effects (SSAO, DoF, SSR)
     // Applied after game rendering but before UI and present
     // ==========================================================================
-    // Extract camera parameters using traced PPC code addresses
-    // Primary: Direct guest memory access to discovered global addresses
-    // Fallback: Extract from vertex shader constants if guest access fails
-    
-    const float* vsConstants = reinterpret_cast<const float*>(g_vertexShaderConstants);
-    Camera::ExtractCameraFromShaderConstants(vsConstants, Camera::g_cameraData);
+    // Camera extraction is only needed by camera-dependent post effects.
+    // Avoid per-frame shader-constant extraction when SSAO, DoF, and sun shafts are all off.
+    const bool cameraPostEffectsEnabled =
+        Config::SSAO != ESSAO::Off ||
+        Config::DepthOfField != EDepthOfField::Off ||
+        Config::EnableSunShafts;
+    if (cameraPostEffectsEnabled)
+    {
+        // Primary: Direct guest memory access to discovered global addresses
+        // Fallback: Extract from vertex shader constants if guest access fails
+        const float* vsConstants = reinterpret_cast<const float*>(g_vertexShaderConstants);
+        Camera::ExtractCameraFromShaderConstants(vsConstants, Camera::g_cameraData);
+    }
     
     // Use extracted camera data
     float cameraNear = Camera::g_cameraData.nearClip;
