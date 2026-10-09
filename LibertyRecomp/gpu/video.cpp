@@ -2060,9 +2060,13 @@ static void ApplyLowEndDefaults()
 {
     bool changed = false;
 
-    ApplyLowEndDefault(Config::AntiAliasing, EAntiAliasing::MSAA2x, changed);
-    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::x1024, changed);
-    ApplyLowEndDefault(Config::ReflectionResolution, EReflectionResolution::Quarter, changed);
+    // Lower pixel and post-processing costs on low-end/integrated GPUs.
+    ApplyLowEndDefault(Config::ResolutionScale, 0.5f, changed);
+    ApplyLowEndDefault(Config::AntiAliasing, EAntiAliasing::Off, changed);
+    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::x512, changed);
+    ApplyLowEndDefault(Config::ShadowFilter, EShadowFilter::Off, changed);
+    ApplyLowEndDefault(Config::ReflectionResolution, EReflectionResolution::Eighth, changed);
+    ApplyLowEndDefault(Config::AnisotropicFiltering, uint32_t{2}, changed);
     ApplyLowEndDefault(Config::TransparencyAntiAliasing, false, changed);
 
     // Reduce scene complexity on low-end devices without disabling LOD (which would force high detail).
