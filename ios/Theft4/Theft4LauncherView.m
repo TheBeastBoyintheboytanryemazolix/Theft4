@@ -290,8 +290,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     }
 
     _shadowQuality = ChoiceControl(@[@"Off", @"Optimized", @"Original", @"Enhanced", @"Ultra"], @"shadowQuality",
-        @"Dynamic shadows", @"Optimized is pending validation of distant shadow cache reuse.");
-    [_shadowQuality setEnabled:NO forSegmentAtIndex:1];
+        @"Dynamic shadows", @"All shadow presets are selectable on every device. Optimized uses a smaller shadow map and shorter range; higher presets may reduce performance.");
     _drawDistance = ChoiceControl(@[@"Optimized", @"Original", @"2×", @"3×"], @"drawDistance",
         @"Draw distance", @"Optimized reduces world distance and distant local illumination.");
     _modelDetail = ChoiceControl(@[@"Lower", @"Original", @"Highest"], @"modelDetail",
