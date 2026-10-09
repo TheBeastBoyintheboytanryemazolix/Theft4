@@ -2060,12 +2060,17 @@ static void ApplyLowEndDefaults()
 {
     bool changed = false;
 
-    ApplyLowEndDefault(Config::AntiAliasing, EAntiAliasing::MSAA2x, changed);
-    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::x1024, changed);
-    ApplyLowEndDefault(Config::ReflectionResolution, EReflectionResolution::Quarter, changed);
+    // Reduce the largest per-frame GPU costs on integrated / unified-memory devices.
+    // ResolutionScale 0.5 renders one quarter as many pixels as native resolution.
+    ApplyLowEndDefault(Config::ResolutionScale, 0.5f, changed);
+    ApplyLowEndDefault(Config::AntiAliasing, EAntiAliasing::Off, changed);
+    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::x512, changed);
+    ApplyLowEndDefault(Config::ShadowFilter, EShadowFilter::Off, changed);
+    ApplyLowEndDefault(Config::ReflectionResolution, EReflectionResolution::Eighth, changed);
+    ApplyLowEndDefault(Config::AnisotropicFiltering, uint32_t{2}, changed);
     ApplyLowEndDefault(Config::TransparencyAntiAliasing, false, changed);
 
-    if (changed) 
+    if (changed)
     {
         Config::Save();
     }
