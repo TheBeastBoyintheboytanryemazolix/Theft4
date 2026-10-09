@@ -2070,6 +2070,12 @@ static void ApplyLowEndDefaults()
     ApplyLowEndDefault(Config::AnisotropicFiltering, uint32_t{2}, changed);
     ApplyLowEndDefault(Config::TransparencyAntiAliasing, false, changed);
 
+    // Reduce scene complexity on low-end devices without disabling LOD (which would force high detail).
+    ApplyLowEndDefault(Config::RenderDistanceMultiplier, 0.65f, changed);
+    ApplyLowEndDefault(Config::LODDistanceMultiplier, 0.5f, changed);
+    ApplyLowEndDefault(Config::StreamingDistanceMultiplier, 0.75f, changed);
+    ApplyLowEndDefault(Config::FarClipMultiplier, 0.75f, changed);
+
     if (changed)
     {
         Config::Save();
