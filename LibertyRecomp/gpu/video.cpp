@@ -3518,20 +3518,28 @@ void Video::Present()
     // Post-Processing Effects (SSAO, DoF, SSR)
     // Applied after game rendering but before UI and present
     // ==========================================================================
-    // Extract camera parameters using traced PPC code addresses
-    // Primary: Direct guest memory access to discovered global addresses
-    // Fallback: Extract from vertex shader constants if guest access fails
-    
-    const float* vsConstants = reinterpret_cast<const float*>(g_vertexShaderConstants);
-    Camera::ExtractCameraFromShaderConstants(vsConstants, Camera::g_cameraData);
-    
-    // Use extracted camera data
+    // Camera extraction is only needed by the camera-dependent custom effects.
+    // Avoid repeating guest-memory/shader-constant work when all of them are off.
+    // SSR currently has no compiled pipeline, so it cannot consume this data yet.
+    const bool cameraEffectsEnabled =
+        Config::SSAO != ESSAO::Off ||
+        Config::DepthOfField != EDepthOfField::Off ||
+        Config::EnableSunShafts;
+
+    if (cameraEffectsEnabled) {
+        // Primary: Direct guest memory access to discovered global addresses.
+        // Fallback: Extract from vertex shader constants if guest access fails.
+        const float* vsConstants = reinterpret_cast<const float*>(g_vertexShaderConstants);
+        Camera::ExtractCameraFromShaderConstants(vsConstants, Camera::g_cameraData);
+    }
+
+    // These values are consumed only by effects guarded by their config/pipeline checks.
     float cameraNear = Camera::g_cameraData.nearClip;
     float cameraFar = Camera::g_cameraData.farClip;
     float cameraFovY = Camera::g_cameraData.fovY;
     const float* viewMatrix = Camera::g_cameraData.viewMatrix;
     const float* projMatrix = Camera::g_cameraData.projMatrix;
-    bool projValid = Camera::g_cameraData.isValid;
+    bool projValid = cameraEffectsEnabled && Camera::g_cameraData.isValid;
     
     // Apply post-processing effects if enabled and available
     if (g_depthStencil != nullptr && g_renderTarget != nullptr && 
