@@ -253,10 +253,13 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             REXCVAR_SET(gta4_drawable_reference_limit, 9000u);
             REXCVAR_SET(gta4_force_highest_lod, false);
             REXCVAR_SET(gta4_lod_selection_distance_scale, 1.75);
-            // Respect the user's selected shadow and reflection quality.
-            // The performance preset does not rewrite either system.
+            // Disable shadowing for the Very Low preset while keeping reflection
+            // settings untouched. A zero distance is handled by the native hook
+            // as an explicit no-shadow range rather than falling back to stock.
+            REXCVAR_SET(gta4_shadow_map_base_size, 128u);
+            REXCVAR_SET(gta4_shadow_distance_scale, 0.0);
             REXCVAR_SET(gta4_native_anti_aliasing, "off");
-            REXLOG_INFO("Theft4 A16 Very Low optimization enabled: FSR Performance, reduced scene resolution, 1x anisotropy, AA off; shadow/reflection selections preserved");
+            REXLOG_INFO("Theft4 A16 Very Low optimization enabled: FSR Performance, reduced scene resolution, 1x anisotropy, shadows off, AA off; reflection selections preserved");
         }
 
         REXLOG_INFO("Theft4 graphics: shadows={} ({} map, {}x range) draw-distance={}x drawable-limit={} highest-lod={} lod-selection-bias={} reflections={} anti-aliasing={}", shadow, shadow_map_size, shadow_distance, draw_distance_scale, drawable_reference_limit, highest_lod == "1", lod_distance, reflection, anti_aliasing);
