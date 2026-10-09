@@ -2642,12 +2642,6 @@ std::pair<uint32_t, uint32_t> GetReflectionPhysicalExtent(const ReflectionResour
     // cost from the reflection passes without changing guest resource ABI.
     return {1, 1};
   }
-  if (selection == "low") {
-    // Preserve visible reflections at a deliberately tiny resolution for low-end devices.
-    return resource.family == ReflectionFamily::kEnvironment
-               ? std::pair<uint32_t, uint32_t>{256, 256}
-               : std::pair<uint32_t, uint32_t>{256, 144};
-  }
   if (selection == "original") {
     return {resource.logical_width, resource.logical_height};
   }
@@ -2807,7 +2801,10 @@ void ApplyShadowDistanceScale(uint8_t* base) {
   }
 
   std::array<float, kNativeShadowContextCount> scaled_ranges{};
-  if (!CalculateNativeShadowRanges(original_ranges, configured_scale, scaled_ranges)) {
+  if (configured_scale == 0.0) {
+    // Explicit zero is the Very Low preset's no-shadow mode.
+    scaled_ranges.fill(0.0f);
+  } else if (!CalculateNativeShadowRanges(original_ranges, configured_scale, scaled_ranges)) {
     REXLOG_WARN(
         "gta4-native-quality: invalid shadow distance multiplier={} or scaled range; "
         "leaving both contexts unchanged",
