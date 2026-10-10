@@ -47,6 +47,8 @@ namespace GTAIV {
 #include <bit>
 #include <cpu/guest_thread.h>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <cstdio>
 #include <decompressor.h>
 #include <limits>
@@ -5629,7 +5631,15 @@ static void ProcSetSamplerState(const RenderCommand& cmd)
     auto mipFilter = ConvertTextureFilter((args.data3 >> 23) & 0x3);
     const auto borderColor = ConvertBorderColor(args.data5 & 0x3);
 
-    bool anisotropyEnabled = Config::AnisotropicFiltering > 0 && mipFilter == RenderFilter::LINEAR;
+    // Honor the iOS Graphics switch for this launch. Without this override the
+    // launcher could display a changed value while sampler objects stayed unchanged.
+    uint32_t configuredAnisotropy = Config::AnisotropicFiltering;
+    if (const char* setting = std::getenv("THEFT4_ANISOTROPY"))
+    {
+        if (std::strcmp(setting, "1x") == 0) configuredAnisotropy = 1;
+        else if (std::strcmp(setting, "4x") == 0) configuredAnisotropy = 4;
+    }
+    bool anisotropyEnabled = configuredAnisotropy > 1 && mipFilter == RenderFilter::LINEAR;
     if (anisotropyEnabled)
     {
         magFilter = RenderFilter::LINEAR;
@@ -5646,7 +5656,7 @@ static void ProcSetSamplerState(const RenderCommand& cmd)
     SetDirtyValue(dirty, samplerDesc.minFilter, minFilter);
     SetDirtyValue(dirty, samplerDesc.magFilter, magFilter);
     SetDirtyValue(dirty, samplerDesc.mipmapMode, RenderMipmapMode(mipFilter));
-    SetDirtyValue(dirty, samplerDesc.maxAnisotropy, anisotropyEnabled ? Config::AnisotropicFiltering : 16u);
+    SetDirtyValue(dirty, samplerDesc.maxAnisotropy, anisotropyEnabled ? configuredAnisotropy : 16u);
     SetDirtyValue(dirty, samplerDesc.anisotropyEnabled, anisotropyEnabled);
     SetDirtyValue(dirty, samplerDesc.borderColor, borderColor);
 

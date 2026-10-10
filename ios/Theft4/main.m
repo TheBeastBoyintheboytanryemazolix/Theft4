@@ -508,6 +508,7 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     NSLayoutConstraint *_metalWidthLimitConstraint;
     NSLayoutConstraint *_metalHeightLimitConstraint;
     NSLayoutConstraint *_metalPreferredWidthConstraint;
+    NSArray<NSLayoutConstraint *> *_metalStretchConstraints;
 }
 - (void)record:(NSString *)event;
 - (void)activate;
@@ -2280,25 +2281,28 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 }
 
 - (void)applySelectedAspectRatioPresentation {
+    if (!_metalView) return;
     const BOOL stretch = _aspectRatio && _aspectRatio.selectedSegmentIndex == 1;
-    if (stretch) {
-        [_metalView.superview layoutIfNeeded];
-        [NSLayoutConstraint deactivateConstraints:@[
-            _metalAspectConstraint, _metalWidthLimitConstraint,
-            _metalHeightLimitConstraint, _metalPreferredWidthConstraint
-        ]];
-        [NSLayoutConstraint activateConstraints:@[
+    if (!_metalStretchConstraints) {
+        _metalStretchConstraints = @[
             [_metalView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
             [_metalView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
             [_metalView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
             [_metalView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
+        ];
+    }
+    if (stretch) {
+        [NSLayoutConstraint deactivateConstraints:@[
+            _metalAspectConstraint, _metalWidthLimitConstraint,
+            _metalHeightLimitConstraint, _metalPreferredWidthConstraint
         ]];
+        [NSLayoutConstraint activateConstraints:_metalStretchConstraints];
         ((CAMetalLayer *)_metalView.layer).contentsGravity = kCAGravityResize;
         [self.view layoutIfNeeded];
         [self record:@"graphics.aspect_ratio_stretch_enabled"];
     } else {
-        // Original keeps the game's authored 16:9 presentation and centered
-        // pillar/letterboxing rather than stretching the final image.
+        // Deactivate full-screen constraints before restoring centered 16:9.
+        [NSLayoutConstraint deactivateConstraints:_metalStretchConstraints];
         ((CAMetalLayer *)_metalView.layer).contentsGravity = kCAGravityResizeAspect;
         [NSLayoutConstraint activateConstraints:@[
             _metalAspectConstraint, _metalWidthLimitConstraint,

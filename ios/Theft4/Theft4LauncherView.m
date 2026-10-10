@@ -321,7 +321,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         [self choice:@"MODEL DETAIL" detail:@"Lower selects simpler resident meshes sooner; Highest prefers the best resident mesh. Neither forces missing models to load. Lower may reduce geometry cost, but CPU gains depend on submesh and draw-call counts." control:_modelDetail metrics:_modelMetrics],
         [self choice:@"REFLECTION QUALITY" detail:@"Mirror and water targets / environment cubemap. Full is capped at 1440p in this build." control:_reflectionQuality metrics:_reflectionMetrics],
         [self choice:@"ANTI-ALIASING" detail:@"Edge smoothing after scene rendering; this does not change internal resolution." control:_antiAliasing metrics:_aaMetrics],
-        [self setting:@"TEXTURE FILTERING · 4×" detail:@"Cleaner roads and surfaces at an angle." toggle:_anisotropicFiltering],
+        [self setting:@"TEXTURE FILTERING · 4×" detail:@"Enables 4× anisotropic texture sampling in the renderer for clearer roads and surfaces at an angle. Off uses 1× filtering. Changes apply on the next game launch." toggle:_anisotropicFiltering],
         [self setting:@"MOTION BLUR" detail:@"Original movement blur. Disable for a sharper image in motion." toggle:_motionBlur],
         [self setting:@"DEPTH OF FIELD" detail:@"Distance-based focus blur. Off by default on iPhone Air; this may sharpen city views, but performance gains need testing." toggle:_depthOfField],
         Copy(@"Graphics changes apply on the next game launch. Extended distance and Ultra shadows can reduce frame rate in dense areas.", 12, NO)
