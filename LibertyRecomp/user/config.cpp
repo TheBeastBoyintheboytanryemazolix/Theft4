@@ -373,6 +373,7 @@ CONFIG_DEFINE_ENUM_TEMPLATE(EAntiAliasing)
 
 CONFIG_DEFINE_ENUM_TEMPLATE(EShadowResolution)
 {
+    { "Off",      EShadowResolution::Off },
     { "Original", EShadowResolution::Original },
     { "512",      EShadowResolution::x512 },
     { "1024",     EShadowResolution::x1024 },
@@ -1042,7 +1043,7 @@ void Config::CreateCallbacks()
         Config::DynamicResolution.Value = EDynamicResolution::Off;
         Config::MinResolutionScale.Value = 0.50f;
 
-        Config::ShadowResolution.Value = EShadowResolution::x512;
+        Config::ShadowResolution.Value = EShadowResolution::Off;
         Config::ShadowFilter.Value = EShadowFilter::Off;
         Config::ReflectionResolution.Value = EReflectionResolution::Eighth;
         Config::RadialBlur.Value = ERadialBlur::Off;

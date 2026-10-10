@@ -113,7 +113,7 @@ CONFIG_DEFINE_ENUM_LOCALISED("Video", EModernAA, ModernAA, EModernAA::Off, false
 CONFIG_DEFINE_ENUM_LOCALISED("Video", EDynamicResolution, DynamicResolution, EDynamicResolution::Off, false);
 CONFIG_DEFINE_LOCALISED("Video", float, MinResolutionScale, 0.5f, false);
 CONFIG_DEFINE_LOCALISED("Video", float, TargetFrameTime, 16.67f, false);
-CONFIG_DEFINE_ENUM_LOCALISED("Video", EShadowResolution, ShadowResolution, EShadowResolution::x4096, false);
+CONFIG_DEFINE_ENUM_LOCALISED("Video", EShadowResolution, ShadowResolution, EShadowResolution::Off, false);
 CONFIG_DEFINE_ENUM_LOCALISED("Video", EShadowFilter, ShadowFilter, EShadowFilter::PCF3x3, false);
 CONFIG_DEFINE_ENUM_LOCALISED("Video", EReflectionResolution, ReflectionResolution, EReflectionResolution::Half, false);
 CONFIG_DEFINE_ENUM_LOCALISED("Video", ERadialBlur, RadialBlur, ERadialBlur::Original, false);

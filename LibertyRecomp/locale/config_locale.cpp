@@ -1314,6 +1314,7 @@ CONFIG_DEFINE_ENUM_LOCALE(EShadowResolution)
     {
         ELanguage::English,
         {
+            { EShadowResolution::Off,      { "Off", "Completely disable shadow-map rendering." } },
             { EShadowResolution::Original, { "Original", "" } },
             { EShadowResolution::x512,     { "512x512", "" } },
             { EShadowResolution::x1024,    { "1024x1024", "" } },

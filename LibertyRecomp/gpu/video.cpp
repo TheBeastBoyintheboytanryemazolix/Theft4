@@ -2066,7 +2066,7 @@ static void ApplyLowEndDefaults()
     // Lower pixel and post-processing costs on low-end/integrated GPUs.
     ApplyLowEndDefault(Config::ResolutionScale, 0.5f, changed);
     ApplyLowEndDefault(Config::AntiAliasing, EAntiAliasing::Off, changed);
-    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::x512, changed);
+    ApplyLowEndDefault(Config::ShadowResolution, EShadowResolution::Off, changed);
     ApplyLowEndDefault(Config::ShadowFilter, EShadowFilter::Off, changed);
     ApplyLowEndDefault(Config::ReflectionResolution, EReflectionResolution::Eighth, changed);
     ApplyLowEndDefault(Config::AnisotropicFiltering, uint32_t{2}, changed);
@@ -7606,8 +7606,12 @@ void SetShadowResolutionMidAsmHook(PPCRegister& r11)
     // disabling filtering. Keep the normal configured resolution for all
     // other presets.
     const char* shadowQuality = std::getenv("THEFT4_SHADOW_QUALITY");
-    if (shadowQuality != nullptr && std::strcmp(shadowQuality, "off") == 0)
+    const bool launcherShadowsOff =
+        shadowQuality != nullptr && std::strcmp(shadowQuality, "off") == 0;
+    const bool configShadowsOff = Config::ShadowResolution.Value == EShadowResolution::Off;
+    if (launcherShadowsOff || configShadowsOff)
     {
+        // Zero resolution bypasses shadow-map allocation/rendering entirely.
         r11.u64 = 0;
         return;
     }

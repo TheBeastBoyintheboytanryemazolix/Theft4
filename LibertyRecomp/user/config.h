@@ -146,6 +146,7 @@ enum class EAntiAliasing : uint32_t
 
 enum class EShadowResolution : int32_t
 {
+    Off = 0,
     Original = -1,
     x512 = 512,
     x1024 = 1024,
