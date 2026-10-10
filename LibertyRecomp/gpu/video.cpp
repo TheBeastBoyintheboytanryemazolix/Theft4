@@ -3448,8 +3448,27 @@ void Video::WaitOnSwapChain()
 static bool g_shouldPrecompilePipelines;
 static std::atomic<bool> g_executedCommandList;
 
+// Reflection Quality = Off must suppress the game's planar-reflection path as
+// well as the custom SSR pass. The guest global is also consulted by the
+// renderer when preparing non-MSAA pipelines for planar reflection draws.
+static void DisableNativePlanarReflectionsIfRequested()
+{
+    const char* reflectionResolution = std::getenv("THEFT4_REFLECTION_RESOLUTION");
+    if (reflectionResolution == nullptr || std::strcmp(reflectionResolution, "off") != 0)
+        return;
+
+    // This guest global is used by the renderer's planar-reflection handling.
+    // Keep it cleared while the launcher setting is Off; don't touch it for
+    // any other reflection preset.
+    auto* planarReflectionEnabled = reinterpret_cast<bool*>(g_memory.Translate(0x832FA0D8));
+    if (planarReflectionEnabled != nullptr)
+        *planarReflectionEnabled = false;
+}
+
 void Video::Present() 
 {
+    // Clear the native planar-reflection flag before the next frame is prepared.
+    DisableNativePlanarReflectionsIfRequested();
     // MarathonRecomp-style: First Present = transition to Runtime phase
     // This enables proper synchronization (fail-open during init, proper waits after)
     KernelPhase_EnterRuntime();
@@ -7580,6 +7599,8 @@ void IndexBufferLengthMidAsmHook(PPCRegister& r3)
 
 void SetShadowResolutionMidAsmHook(PPCRegister& r11)
 {
+    // This hook runs on the game's render setup path, before its reflection draws.
+    DisableNativePlanarReflectionsIfRequested();
     // The launcher exposes a real "off" shadow preset. A zero shadow-map
     // resolution bypasses shadow-map allocation/rendering instead of merely
     // disabling filtering. Keep the normal configured resolution for all
