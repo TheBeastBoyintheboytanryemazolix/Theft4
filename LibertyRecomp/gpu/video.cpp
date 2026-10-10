@@ -79,6 +79,7 @@ namespace GTAIV {
 #include <ui/main_menu.h>
 #include <patches/aspect_ratio_patches.h>
 #include <user/config.h>
+#include <rex/cvar.h>
 #if !REX_PLATFORM_CONSOLE
 #include <sdl_listener.h>
 #endif
@@ -3813,7 +3814,8 @@ static void ProcExecuteCommandList(const RenderCommand& cmd)
             float offset = (Config::Brightness - 0.5f) * 1.2f;
             constants.gamma = 1.0f / std::clamp(constants.gamma + offset, 0.1f, 4.0f);
             constants.textureDescriptorIndex = g_intermediaryBackBufferTextureDescriptorIndex;
-            if (Config::AspectRatio == EAspectRatio::Stretch)
+            if (Config::AspectRatio == EAspectRatio::Stretch ||
+                rex::cvar::GetFlagByName("gta4_aspect_ratio") == "stretch")
             {
                 // The game is rendered into a 16:9 intermediary texture, but
                 // Stretch intentionally maps that result across the complete
@@ -3940,33 +3942,28 @@ void Video::ComputeViewportDimensions()
     uint32_t height = g_swapChain->getHeight();
     float aspectRatio = float(width) / float(height);
 
-    switch (Config::AspectRatio)
+    const bool stretch_presentation =
+        rex::cvar::GetFlagByName("gta4_aspect_ratio") == "stretch";
+    if (Config::AspectRatio == EAspectRatio::Original ||
+        Config::AspectRatio == EAspectRatio::Stretch || stretch_presentation)
     {
-        case EAspectRatio::Original:
-        case EAspectRatio::Stretch:
+        // Keep GTA IV's internal render at 16:9. Stretch mode scales the
+        // final presentation to the full physical display in the resolve pass.
+        if (aspectRatio > WIDE_ASPECT_RATIO)
         {
-            // Stretch keeps the game render at its native 16:9 composition.
-            // EAspectRatio::Stretch differs at final presentation: the
-            // 16:9 result is scaled to the entire display instead of being
-            // pillar/letterboxed.
-            if (aspectRatio > WIDE_ASPECT_RATIO)
-            {
-                s_viewportWidth = height * 16 / 9;
-                s_viewportHeight = height;
-            }
-            else
-            {
-                s_viewportWidth = width;
-                s_viewportHeight = width * 9 / 16;
-            }
-
-            break;
-        }
-
-        default:
-            s_viewportWidth = width;
+            s_viewportWidth = height * 16 / 9;
             s_viewportHeight = height;
-            break;
+        }
+        else
+        {
+            s_viewportWidth = width;
+            s_viewportHeight = width * 9 / 16;
+        }
+    }
+    else
+    {
+        s_viewportWidth = width;
+        s_viewportHeight = height;
     }
 
     AspectRatioPatches::ComputeOffsets();
