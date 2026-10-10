@@ -31,6 +31,10 @@ REXCVAR_DEFINE_BOOL(gta4_frontend_advanced_graphics_menu, true, "GTA IV/Frontend
                     "Add an Advanced Graphics page without exceeding the retail 20-row list widget")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+REXCVAR_DEFINE_STRING(gta4_aspect_ratio, "auto", "GTA IV/Graphics",
+                      "Presentation aspect ratio; Stretch fills the entire display")
+    .allowed({"auto", "stretch", "16:9", "16:10", "3:2", "4:3", "5:4", "21:9", "32:9", "43:18", "32:10"});
+
 void GTA4_RunWithPrimaryPlayerInfoAlias(PPCContext& ctx, uint8_t* base,
                                         void (*function)(PPCContext&, uint8_t*));
 
