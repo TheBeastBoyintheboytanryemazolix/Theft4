@@ -3601,8 +3601,13 @@ void Video::Present()
             cameraFar
         );
         
-        // Apply SSR if enabled (requires view and projection matrices)
-        if (projValid) {
+        // Honor the launcher's Reflection Quality = Off setting. This
+        // prevents the custom screen-space reflection pass from running,
+        // rather than merely selecting a lower reflection resolution.
+        const char* reflectionResolution = std::getenv("THEFT4_REFLECTION_RESOLUTION");
+        const bool reflectionsOff =
+            reflectionResolution != nullptr && std::strcmp(reflectionResolution, "off") == 0;
+        if (!reflectionsOff && projValid) {
             PostProcess::g_postProcessRenderer.ApplySSR(
                 commandList.get(),
                 g_renderTarget->texture,
