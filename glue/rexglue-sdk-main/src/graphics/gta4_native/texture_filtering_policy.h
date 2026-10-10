@@ -24,7 +24,7 @@ constexpr MaterialTextureFilterState ApplyMaterialTextureFiltering(
   if (!material_filter_eligible) {
     return title_state;
   }
-  if (override_value == "bilinear") {
+  if (override_value == "low" || override_value == "bilinear") {
     title_state.min_filter = xenos::TextureFilter::kLinear;
     title_state.mag_filter = xenos::TextureFilter::kLinear;
     title_state.mip_filter = xenos::TextureFilter::kPoint;
