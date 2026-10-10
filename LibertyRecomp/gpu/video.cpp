@@ -7575,8 +7575,18 @@ void IndexBufferLengthMidAsmHook(PPCRegister& r3)
 
 void SetShadowResolutionMidAsmHook(PPCRegister& r11)
 {
-    auto res = (int32_t)Config::ShadowResolution.Value;
+    // The launcher exposes a real "off" shadow preset. A zero shadow-map
+    // resolution bypasses shadow-map allocation/rendering instead of merely
+    // disabling filtering. Keep the normal configured resolution for all
+    // other presets.
+    const char* shadowQuality = std::getenv("THEFT4_SHADOW_QUALITY");
+    if (shadowQuality != nullptr && std::strcmp(shadowQuality, "off") == 0)
+    {
+        r11.u64 = 0;
+        return;
+    }
 
+    auto res = (int32_t)Config::ShadowResolution.Value;
     if (res > 0)
         r11.u64 = res;
 }
