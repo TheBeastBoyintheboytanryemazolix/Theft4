@@ -117,6 +117,7 @@ enum class TextId : uint8_t {
   kAspect32x9,
   kAspect43x18,
   kAspect32x10,
+  kStretch,
   kWindowed,
   kFullscreen,
   kOff,
@@ -160,6 +161,7 @@ enum class TextId : uint8_t {
   kBalanced,
   kPerformance,
   kOriginal,
+  kLowTextureQuality,
   kBilinear,
   kTrilinear,
   k1x,
@@ -207,6 +209,7 @@ constexpr std::array kResolutionChoices = {
 };
 constexpr std::array kAspectChoices = {
     Choice{"auto", TextId::kDisplay},
+    Choice{"stretch", TextId::kStretch},
     Choice{"16:9", TextId::kOriginalAspect},
     Choice{"16:10", TextId::kAspect16x10},
     Choice{"3:2", TextId::kAspect3x2},
@@ -290,6 +293,7 @@ constexpr std::array kFsrQualityChoices = {
     Choice{"performance", TextId::kPerformance},
 };
 constexpr std::array kTextureFilteringChoices = {
+    Choice{"low", TextId::kLowTextureQuality},
     Choice{"bilinear", TextId::kBilinear},
     Choice{"trilinear", TextId::kTrilinear},
 };
@@ -411,6 +415,7 @@ constexpr std::array<std::string_view, static_cast<size_t>(TextId::kCount)> kStr
     "32:9",
     "43:18 (3440 x 1440)",
     "32:10",
+    "Stretch",
     "Windowed",
     "Fullscreen",
     "Off",
@@ -454,6 +459,7 @@ constexpr std::array<std::string_view, static_cast<size_t>(TextId::kCount)> kStr
     "Balanced",
     "Performance",
     "Original",
+    "Low Texture Quality",
     "Bilinear",
     "Trilinear",
     "1x",
