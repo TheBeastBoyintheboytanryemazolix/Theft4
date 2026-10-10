@@ -150,9 +150,9 @@ REXCVAR_DEFINE_BOOL(gta4_native_output_dither, true, "GTA IV/Graphics/Post-Proce
                     "Apply stable display-space dithering to reduce output banding");
 REXCVAR_DEFINE_BOOL(gta4_native_hdr_high_precision, true, "GTA IV/Graphics/HDR",
                     "Preserve the final display-ready resolve in FP16 while HDR is active");
-REXCVAR_DEFINE_STRING(gta4_texture_filtering, "trilinear", "GTA IV/Graphics/Texture Filtering",
-                      "Material texture filtering: bilinear or trilinear")
-    .allowed({"bilinear", "trilinear"})
+REXCVAR_DEFINE_STRING(gta4_texture_filtering, "low", "GTA IV/Graphics/Texture Filtering",
+                      "Material texture quality: low uses a lower mip level; bilinear/trilinear preserve base detail")
+    .allowed({"low", "bilinear", "trilinear"})
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_STRING(gta4_anisotropic_filtering, "1x", "GTA IV/Graphics/Texture Filtering",
                       "Material anisotropic filtering: 1x, 2x, 4x, 8x, or 16x")
@@ -17276,6 +17276,16 @@ Gta4NativeGraphicsSystem::NativeSampler* Gta4NativeGraphicsSystem::GetOrCreateSa
   key.min_filter = effective_texture_filtering.min_filter;
   key.mag_filter = effective_texture_filtering.mag_filter;
   key.mip_filter = effective_texture_filtering.mip_filter;
+
+  // Low texture quality samples from one mip level down when a safe mip chain
+  // exists. Keep the original texture image/payload intact, and only apply this
+  // to eligible ordinary material textures (not fonts, reflections, or GPU images).
+  if (texture_filtering == "low" && material_filter_eligible && image &&
+      image->mip_levels > 1) {
+    const uint32_t maximum_image_mip = image->mip_levels - 1;
+    key.mip_min_level = std::min(key.mip_min_level + 1, maximum_image_mip);
+    key.mip_max_level = std::max(key.mip_max_level, key.mip_min_level);
+  }
 
   const std::string& anisotropic_filtering = active_anisotropic_filtering_;
 
