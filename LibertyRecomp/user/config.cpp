@@ -984,7 +984,8 @@ void Config::CreateCallbacks()
 
     Config::ResolutionScale.Callback = [](ConfigDef<float>* def)
     {
-        def->Value = std::clamp(def->Value, 0.25f, 2.0f);
+        // Keep the lowest internal render scale at 50% (540p on a 1080p base).
+        def->Value = std::clamp(def->Value, 0.50f, 2.0f);
     };
 
     // Motion blur strength validation (0.0 - 2.0)
@@ -1023,10 +1024,10 @@ void Config::CreateCallbacks()
         def->Value = std::clamp(def->Value, 0.0f, 1.0f);
     };
 
-    // Min resolution scale validation (0.25 - 1.0)
+    // Minimum dynamic-resolution scale: 50% (540p on a 1080p base).
     Config::MinResolutionScale.Callback = [](ConfigDef<float>* def)
     {
-        def->Value = std::clamp(def->Value, 0.25f, 1.0f);
+        def->Value = std::clamp(def->Value, 0.50f, 1.0f);
     };
 
     Config::GraphicsQuality.Callback = [](ConfigDef<EGraphicsQuality>* def)
@@ -1034,8 +1035,8 @@ void Config::CreateCallbacks()
         if (def->Value != EGraphicsQuality::VeryLow)
             return;
 
-        // Functional Very Low preset: reduce internal resolution, AA,
-        // shadows, reflections, post-processing, and world/detail distances.
+        // Functional Very Low preset: use the 540p floor on a 1080p base,
+        // with AA, shadows, reflections, post-processing, and detail reduced.
         Config::ResolutionScale.Value = 0.50f;
         Config::AntiAliasing.Value = EAntiAliasing::Off;
         Config::TransparencyAntiAliasing.Value = false;
