@@ -123,5 +123,21 @@ int main() {
     assert(native_aspect_fsr.render_width == (native_aspect_fsr.output_width * 2 + 1) / 3);
     assert(native_aspect_fsr.render_height == (native_aspect_fsr.output_height * 2 + 1) / 3);
 
+    const auto fixed_profile_native_fsr = theft4_output_policy_for_native_aspect_lab(
+        THEFT4_LAB_NATIVE_16_9, true, 2420, 1668, true);
+    assert(fixed_profile_native_fsr.fsr1);
+    assert(fixed_profile_native_fsr.output_width == 2420);
+    assert(fixed_profile_native_fsr.output_height == 1668);
+    assert(fixed_profile_native_fsr.render_width ==
+        (fixed_profile_native_fsr.output_width * 2 + 1) / 3);
+    assert(fixed_profile_native_fsr.render_height ==
+        (fixed_profile_native_fsr.output_height * 2 + 1) / 3);
+
+    const auto a19_native_fsr = theft4_output_policy_for_a19_lab_selected(
+        THEFT4_LAB_NATIVE_16_9, true);
+    assert(a19_native_fsr.fsr1);
+    assert(a19_native_fsr.output_width == 1920 && a19_native_fsr.output_height == 1080);
+    assert(a19_native_fsr.render_width == 1280 && a19_native_fsr.render_height == 720);
+
     puts("Lab 540p/720p/900p/1080p/native-output + FSR policies passed");
 }
