@@ -121,7 +121,7 @@ static inline theft4_output_policy theft4_output_policy_for_fixed_1080_lab_selec
     uint32_t render_height, bool fsr1, uint32_t native_width, uint32_t native_height) {
     const uint32_t height = theft4_lab_render_height(render_height);
     if (height == THEFT4_LAB_NATIVE_16_9)
-        return theft4_output_policy_for_lab(height, false, native_width, native_height);
+        return theft4_output_policy_for_lab(height, fsr1, native_width, native_height);
     theft4_output_policy policy = theft4_output_policy_for_lab(
         height, fsr1, native_width, native_height);
     policy.output_height = 1080;
