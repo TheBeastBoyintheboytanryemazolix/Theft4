@@ -84,9 +84,9 @@ static inline theft4_output_policy theft4_output_policy_for_lab(
         const uint32_t width = units * 16;
         const uint32_t native_fit_height = units * 9;
         const uint32_t render_width = fsr1 ? (width * 2 + 1) / 3 : width;
-        const uint32_t render_height = fsr1 ? (native_fit_height * 2 + 1) / 3
-                                            : native_fit_height;
-        theft4_output_policy policy = {render_width, render_height, width, native_fit_height,
+        const uint32_t scene_height = fsr1 ? (native_fit_height * 2 + 1) / 3
+                                          : native_fit_height;
+        theft4_output_policy policy = {render_width, scene_height, width, native_fit_height,
                                       fsr1, width, native_fit_height};
         return policy;
     }
