@@ -44,8 +44,9 @@ namespace {
 using namespace rex::literals;
 
 constexpr uint32_t kGta4TitleId = 0x545407F2;
-constexpr uint32_t kRequiredTargetVersion = 0x00000805;
-constexpr uint64_t kRequiredBaseXexXxh3 = 2823947441600373906ULL;
+constexpr uint32_t kRequiredTargetVersionUsa = 0x00000805;
+// PAL/EU retail 1.00 uses base version 0.0.0.6 and v8 target 0.0.8.6.
+constexpr uint32_t kRequiredTargetVersionPal = 0x00000806;
 constexpr std::string_view kRequiredPatchSha256 =
     "480aee5e2b42707791e7571bb8407c5bb3f6c7534f07f9beb426db4cfc648fd3";
 constexpr std::string_view kEmbeddedTargetXexSha256 =
@@ -320,11 +321,19 @@ bool ValidateBaseXex(const XexInfo& info, std::string& error) {
     error = "The selected source is not Grand Theft Auto IV for Xbox 360.";
     return false;
   }
+  if (info.version != 0x00000005 && info.version != 0x00000006) {
+    error = "The selected XEX is not GTA IV retail 1.00 for USA or PAL.";
+    return false;
+  }
   if ((info.module_flags & rex::XEX_MODULE_TITLE) == 0) {
     error = "The selected XEX is not a title executable.";
     return false;
   }
   return true;
+}
+
+uint32_t RequiredTargetVersion(const XexInfo& base) {
+  return base.version == 0x00000006 ? kRequiredTargetVersionPal : kRequiredTargetVersionUsa;
 }
 
 bool ValidatePatch(const XexInfo& base, const XexInfo& patch, std::span<const uint8_t> patch_bytes,
@@ -334,16 +343,21 @@ bool ValidatePatch(const XexInfo& base, const XexInfo& patch, std::span<const ui
     error = "The selected update does not contain a delta XEXP patch.";
     return false;
   }
-  if (patch.delta_target_version != kRequiredTargetVersion) {
-    error = "This build requires the GTA IV v8 (0.0.8.5) title update.";
+  const uint32_t required_target_version = RequiredTargetVersion(base);
+  if (patch.delta_target_version != required_target_version) {
+    error = base.version == 0x00000006
+                ? "This build requires the GTA IV v8 (EU/PAL 0.0.8.6) title update."
+                : "This build requires the GTA IV v8 (USA 0.0.8.5) title update.";
     return false;
   }
   if (patch.delta_source_version != base.version) {
     error = "The selected title update does not target this base-game revision.";
     return false;
   }
-  if (HashBytes(patch_bytes) != kRequiredPatchSha256) {
-    error = "The selected XEXP is not the supported GTA IV v8 patch.";
+  // USA media uses the pinned XEXP hash. PAL/EU media ships a distinct v8 XEXP;
+  // its source-version and RSA-signature digest are still checked below.
+  if (base.version == 0x00000005 && HashBytes(patch_bytes) != kRequiredPatchSha256) {
+    error = "The selected XEXP is not the supported GTA IV USA v8 patch.";
     return false;
   }
 
@@ -741,7 +755,7 @@ bool WriteManifest(const std::filesystem::path& game_root, const XexInfo& base,
   stream << "format=1\n";
   stream << "title_id=545407F2\n";
   stream << "base_version=" << base.version << "\n";
-  stream << "target_version=" << kRequiredTargetVersion << "\n";
+  stream << "target_version=" << RequiredTargetVersion(base) << "\n";
   stream << "rpf_layout=preserved-and-extracted\n";
   stream << "base_sha256=" << HashBytes(base_bytes) << "\n";
   if (!patch_bytes.empty()) {
@@ -862,13 +876,8 @@ bool ValidateInstalledPair(const std::filesystem::path& game_root, std::string& 
     return false;
   }
 
-  if (base.version == kRequiredTargetVersion && HashBytes(base_bytes) == kEmbeddedTargetXexSha256) {
+  if (base.version == kRequiredTargetVersionUsa && HashBytes(base_bytes) == kEmbeddedTargetXexSha256) {
     return true;
-  }
-
-  if (XXH3_64bits(base_bytes.data(), base_bytes.size()) != kRequiredBaseXexXxh3) {
-    reason = "default.xex does not match GTA IV USA retail 1.00.";
-    return false;
   }
 
   const auto patch_path = game_root / "default.xexp";
@@ -914,11 +923,6 @@ Result InstallTitleUpdate(const std::filesystem::path& game_root,
     if (!ParseXex(base_bytes, base, result.error) || !ValidateBaseXex(base, result.error)) {
       return result;
     }
-    if (XXH3_64bits(base_bytes.data(), base_bytes.size()) != kRequiredBaseXexXxh3) {
-      result.error = "default.xex does not match GTA IV USA retail 1.00.";
-      return result;
-    }
-
     auto update = PrepareUpdateSource(update_source, base, result.error);
     if (!update) {
       return result;
