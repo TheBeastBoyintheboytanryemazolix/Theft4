@@ -450,6 +450,9 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src/input"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/crypto"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include"
         "${THEFT4_GENERATED_DIR}")
     target_link_libraries(theft4_core_bridge PRIVATE theft4_game_code
         SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler
