@@ -2023,7 +2023,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [NSUserDefaults.standardUserDefaults setInteger:(NSInteger)_bringupOverlay.sharpening.value
             forKey:@"Theft4Sharpening"];
     }
-    if (_bringupOverlay.renderResolution.selectedSegmentIndex == 4) _bringupOverlay.fsrUpscaling.on = NO;
     [self applyLimitedMemoryCaps];
     if (sender == _fsrBoost && _fsrBoost.on) _enhancedOutput.on = YES;
     if (sender == _enhancedOutput && !_enhancedOutput.on) _fsrBoost.on = NO;
