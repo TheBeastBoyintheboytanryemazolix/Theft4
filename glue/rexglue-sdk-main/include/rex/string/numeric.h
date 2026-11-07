@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <fmt/format.h>
 
@@ -153,11 +154,6 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     std::memcpy(&result, &pun, sizeof(PUN));
   } else {
     if (!parse_floating(range.data(), range.data() + range.size(), result)) {
-      assert_always();
-      return T();
-    }
-    // TODO(gibbed): do something more with errors?
-    if (false) {
       assert_always();
       return T();
     }
