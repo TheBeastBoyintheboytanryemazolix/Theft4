@@ -96,14 +96,32 @@ int main() {
     for (const auto display : displays) {
         const auto native = theft4_output_policy_for_lab(
             THEFT4_LAB_NATIVE_16_9, true, display.width, display.height);
-        assert(native.render_width == display.native_width);
-        assert(native.render_height == display.native_height);
-        assert(native.output_width == native.render_width);
-        assert(native.output_height == native.render_height);
-        assert(native.video_width == native.render_width);
-        assert(native.video_height == native.render_height);
-        assert(!native.fsr1);
+        assert(native.fsr1);
+        assert(native.output_width == display.native_width);
+        assert(native.output_height == display.native_height);
+        assert(native.video_width == native.output_width);
+        assert(native.video_height == native.output_height);
+        assert(native.render_width == (native.output_width * 2 + 1) / 3);
+        assert(native.render_height == (native.output_height * 2 + 1) / 3);
+
+        const auto native_without_fsr = theft4_output_policy_for_lab(
+            THEFT4_LAB_NATIVE_16_9, false, display.width, display.height);
+        assert(!native_without_fsr.fsr1);
+        assert(native_without_fsr.render_width == native_without_fsr.output_width);
+        assert(native_without_fsr.render_height == native_without_fsr.output_height);
+        assert(native_without_fsr.video_width == native_without_fsr.render_width);
+        assert(native_without_fsr.video_height == native_without_fsr.render_height);
     }
 
-    puts("Lab 540p/720p/900p/1080p/native-pixel centered-16:9 + FSR policies passed");
+    const auto native_aspect_fsr = theft4_output_policy_for_native_aspect_lab(
+        THEFT4_LAB_NATIVE_16_9, true, 2420, 1668, false);
+    assert(native_aspect_fsr.fsr1);
+    assert(native_aspect_fsr.output_width == 2420);
+    assert(native_aspect_fsr.output_height == 1668);
+    assert(native_aspect_fsr.video_width == native_aspect_fsr.output_width);
+    assert(native_aspect_fsr.video_height == native_aspect_fsr.output_height);
+    assert(native_aspect_fsr.render_width == (native_aspect_fsr.output_width * 2 + 1) / 3);
+    assert(native_aspect_fsr.render_height == (native_aspect_fsr.output_height * 2 + 1) / 3);
+
+    puts("Lab 540p/720p/900p/1080p/native-output + FSR policies passed");
 }
