@@ -368,7 +368,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
 #endif
     if (!lab) {
         [graphicsRows insertObjects:@[
-            [self setting:@"1080p ENHANCED OUTPUT" detail:@"FSR 1 upscale plus sharpening." toggle:_enhancedOutput],
+            [self setting:@"FSR UPSCALING" detail:@"On: use FSR 1 to upscale the 720p scene to 1080p output. Off: bypass FSR and use the native 720p output. This setting is saved and applies on the next game launch." toggle:_enhancedOutput],
             [self setting:@"EXPERIMENTAL FSR BOOST" detail:@"Native-pixel 16:9 output while retaining the 720p scene." toggle:_fsrBoost]
         ] atIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)]];
     }
