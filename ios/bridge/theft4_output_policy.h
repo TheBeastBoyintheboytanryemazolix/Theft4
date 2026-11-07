@@ -76,14 +76,18 @@ static inline theft4_output_policy theft4_output_policy_for_lab(
     uint32_t render_height, bool fsr1, uint32_t native_width, uint32_t native_height) {
     const uint32_t height = theft4_lab_render_height(render_height);
     if (height == THEFT4_LAB_NATIVE_16_9) {
-        // Largest exact 16:9 physical-pixel extent that fits the drawable.
+        // Native describes the output budget. When FSR is enabled, render at
+        // 2/3 of that size and let the presenter upscale to the native output.
         uint32_t units = native_width / 16;
         if (native_height / 9 < units) units = native_height / 9;
         if (!units) units = 120;
         const uint32_t width = units * 16;
         const uint32_t native_fit_height = units * 9;
-        theft4_output_policy policy = {width, native_fit_height, width, native_fit_height,
-                                      false, width, native_fit_height};
+        const uint32_t render_width = fsr1 ? (width * 2 + 1) / 3 : width;
+        const uint32_t render_height = fsr1 ? (native_fit_height * 2 + 1) / 3
+                                            : native_fit_height;
+        theft4_output_policy policy = {render_width, render_height, width, native_fit_height,
+                                      fsr1, width, native_fit_height};
         return policy;
     }
     const uint32_t width = theft4_width_for_native_aspect(
@@ -173,23 +177,36 @@ static inline theft4_output_policy theft4_output_policy_for_native_aspect_lab(
     policy.native_aspect = true;
     policy.aspect_width = native_width;
     policy.aspect_height = native_height;
-    if (theft4_lab_render_height(render_height) == THEFT4_LAB_NATIVE_16_9) {
-        policy.render_width = native_width;
-        policy.render_height = native_height;
-        theft4_expand_extent(&policy.render_width, &policy.render_height,
-            native_width, native_height, 4095);
-    } else {
-        theft4_expand_extent(&policy.render_width, &policy.render_height,
-            native_width, native_height, policy.fsr1 ? 2730 : 4095);
-    }
-    if (policy.fsr1) {
+    const bool native_output =
+        theft4_lab_render_height(render_height) == THEFT4_LAB_NATIVE_16_9;
+    if (native_output && policy.fsr1) {
+        // Keep the drawable at the device's native pixel shape. The logical
+        // video mode is the output size; native hooks derive a 2/3 scene size.
+        policy.output_width = native_width;
+        policy.output_height = native_height;
         theft4_expand_extent(&policy.output_width, &policy.output_height,
             native_width, native_height, 4095);
-        policy.video_width = policy.render_width * 3 / 2;
-        policy.video_height = policy.render_height * 3 / 2;
+        policy.video_width = policy.output_width;
+        policy.video_height = policy.output_height;
     } else {
-        policy.video_width = policy.render_width;
-        policy.video_height = policy.render_height;
+        if (native_output) {
+            policy.render_width = native_width;
+            policy.render_height = native_height;
+            theft4_expand_extent(&policy.render_width, &policy.render_height,
+                native_width, native_height, 4095);
+        } else {
+            theft4_expand_extent(&policy.render_width, &policy.render_height,
+                native_width, native_height, policy.fsr1 ? 2730 : 4095);
+        }
+        if (policy.fsr1) {
+            theft4_expand_extent(&policy.output_width, &policy.output_height,
+                native_width, native_height, 4095);
+            policy.video_width = policy.render_width * 3 / 2;
+            policy.video_height = policy.render_height * 3 / 2;
+        } else {
+            policy.video_width = policy.render_width;
+            policy.video_height = policy.render_height;
+        }
     }
     uint32_t width = policy.video_width < 640 ? 640 : policy.video_width;
     uint32_t height = policy.video_height < 480 ? 480 : policy.video_height;
