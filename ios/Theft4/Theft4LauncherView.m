@@ -278,7 +278,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         _resolutionSummary = Copy(@"", 12, YES);
         _resolutionSummary.accessibilityIdentifier = @"settings.resolutionSummary";
         [graphicsRows addObjectsFromArray:@[
-            [self choice:@"INTERNAL RESOLUTION" detail:@"By default, choices use centered 16:9. The Native Aspect Ratio mod expands the scene to your screen shape. Native uses physical pixels and disables FSR." control:_renderResolution],
+            [self choice:@"INTERNAL RESOLUTION" detail:@"By default, choices use centered 16:9. The Native Aspect Ratio mod expands the scene to your screen shape. Native targets the display's pixel size; with FSR on, the scene renders smaller and is upscaled to that output." control:_renderResolution],
             [self setting:@"FSR UPSCALING" detail:
                 (strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "a19") == 0 ||
                  strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "iphone-6gb") == 0 ||
@@ -861,8 +861,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         [MAX(0, _drawDistance.selectedSegmentIndex)];
     if (_renderResolution) {
         const BOOL native = _renderResolution.selectedSegmentIndex == 4;
-        _fsrUpscaling.enabled = !native;
-        if (native) _fsrUpscaling.on = NO;
+        _fsrUpscaling.enabled = YES;
         UIScreen *screen = self.window.screen ?: UIScreen.mainScreen;
         const char *deviceProfile = getenv("THEFT4_DEVICE_PROFILE") ?: "";
         const BOOL fixed1080Output = strcmp(deviceProfile, "a19") == 0 ||
