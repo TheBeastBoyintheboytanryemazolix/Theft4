@@ -13,6 +13,8 @@
 #include <charconv>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
+#include <cerrno>
 #include <string>
 #include <string_view>
 
@@ -60,6 +62,23 @@ inline T from_string(const std::string_view value, bool force_hex = false) {
 }
 
 namespace detail {
+
+// Apple's libc++ only exposes floating-point from_chars on newer iOS deployment
+// targets. Use the C conversion routines for floating-point parsing so this
+// header remains usable on the project's supported iOS versions.
+template <typename T>
+inline bool parse_floating(const char* first, const char* last, T& value) {
+  std::string input(first, last);
+  char* parsed_end = nullptr;
+  errno = 0;
+  if constexpr (std::is_same_v<T, float>) {
+    value = std::strtof(input.c_str(), &parsed_end);
+  } else {
+    value = std::strtod(input.c_str(), &parsed_end);
+  }
+  return parsed_end == input.c_str() + input.size() && parsed_end != input.c_str() &&
+         errno != ERANGE;
+}
 
 template <typename T, typename V = std::make_signed_t<T>>
 inline T make_negative(T value) {
@@ -133,10 +152,12 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     }
     std::memcpy(&result, &pun, sizeof(PUN));
   } else {
-    auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result,
-                                      std::chars_format::general);
+    if (!parse_floating(range.data(), range.data() + range.size(), result)) {
+      assert_always();
+      return T();
+    }
     // TODO(gibbed): do something more with errors?
-    if (error != std::errc()) {
+    if (false) {
       assert_always();
       return T();
     }
@@ -253,12 +274,16 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
         assert_always();
         return vec128_t();
       }
-      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
-      if (result.ec != std::errc()) {
+      const char* token_end = p;
+      while (token_end != end && *token_end != ' ' && *token_end != ',' &&
+             *token_end != ')' && *token_end != ']') {
+        ++token_end;
+      }
+      if (!detail::parse_floating(p, token_end, v.f32[i])) {
         assert_always();
         return vec128_t();
       }
-      p = result.ptr;
+      p = token_end;
     }
   }
   return v;
