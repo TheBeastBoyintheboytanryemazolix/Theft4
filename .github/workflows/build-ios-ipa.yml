@@ -113,7 +113,7 @@ jobs:
             -DTHEFT4_ENABLE_GTA4_NATIVE_BACKEND=ON \
             -DREXGLUE_RUNTIME_ONLY=ON \
             -DREXGLUE_HEADLESS_KERNEL=ON \
-            -DTHEFT4_MOLTENVK_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
+            -DTHEFT4_MOLTENVK_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64" \
             -DTHEFT4_XENIOS_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
 
       - name: Build Theft4 with the native GTA IV renderer
