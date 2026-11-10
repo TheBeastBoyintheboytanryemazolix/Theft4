@@ -114,6 +114,31 @@ jobs:
           ./xenia-build.py msc
           python3 -m pip install --upgrade meson mako pyyaml packaging
 
+          # XeniOS keeps controller mappings, game patches, and compatibility
+          # metadata in build/data_repos; recursive submodule checkout does not
+          # populate these separately maintained repositories.
+          python3 xenia-build.py fetchdata
+
+          DATA_REPOS_DIR="$XENIOS_DIR/build/data_repos"
+          test -s "$DATA_REPOS_DIR/SDL_GameControllerDB/gamecontrollerdb.txt" || {
+            echo "::error::Missing XeniOS SDL controller database after fetchdata"
+            exit 1
+          }
+          test -d "$DATA_REPOS_DIR/game-patches/patches" || {
+            echo "::error::Missing XeniOS game-patches/patches after fetchdata"
+            exit 1
+          }
+          test -s "$DATA_REPOS_DIR/game-compatibility/compatibility_data.json" || {
+            echo "::error::Missing XeniOS compatibility_data.json after fetchdata"
+            exit 1
+          }
+          test -s "$DATA_REPOS_DIR/x360db/games.json" || {
+            echo "::error::Missing XeniOS x360db/games.json after fetchdata"
+            exit 1
+          }
+          echo "Verified XeniOS bundled data repositories:"
+          ls -ld "$DATA_REPOS_DIR/SDL_GameControllerDB" "$DATA_REPOS_DIR/game-patches/patches" "$DATA_REPOS_DIR/game-compatibility" "$DATA_REPOS_DIR/x360db"
+
           cmake -S . -B build-host -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build-host --target xenia-shader-cc --parallel 6
           HOST_SHADER_COMPILER="$(find build-host -type f -name xenia-shader-cc -perm -u+x -print -quit)"
@@ -143,7 +168,8 @@ jobs:
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DXENIA_ENABLE_IOS_MOLTENVK=ON \
             -DXENIA_IOS_HOST_SHADER_COMPILER="$XENIA_IOS_HOST_SHADER_COMPILER" \
-            -DXENIA_IOS_SHADER_CONVERTER_LIBRARY="$XENIA_IOS_SHADER_CONVERTER_LIBRARY"
+            -DXENIA_IOS_SHADER_CONVERTER_LIBRARY="$XENIA_IOS_SHADER_CONVERTER_LIBRARY" \
+            -DXENIA_IOS_COMPATIBILITY_DATA_DIR="$XENIOS_DIR/build/data_repos/game-compatibility"
           cmake --build "$XENIOS_DIR/build-ios-xcode" --config Release \
             --target MoltenVK MoltenVK_Common MoltenVK_ShaderConverter \
                      spirv-cross SPIRV-Tools-static --parallel 6
