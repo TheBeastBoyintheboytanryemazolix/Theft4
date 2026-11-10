@@ -54,32 +54,49 @@ jobs:
       - name: Prepare pinned dependencies and patches
         run: python3 tools/setup_repo.py
 
-      # The iOS build compiles the shared Vulkan render-target source even when
-      # the optional Vulkan backend is disabled. flags.cpp defines this shared
-      # CVar unconditionally, so expose its declaration outside REX_HAS_VULKAN.
-      - name: Make shared Vulkan CVar visible to the iOS build
+      # Some shared Vulkan translation units are compiled in the iOS target
+      # even with Vulkan disabled. Keep their CVar declarations/definitions
+      # available in this build tree without modifying tracked submodule files.
+      - name: Apply iOS shared Vulkan CVar compatibility
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("glue/rexglue-sdk-main/include/rex/graphics/flags.h")
-          source = path.read_text()
-          old = """#if REX_HAS_VULKAN
-          REXCVAR_DECLARE(bool, vulkan_sparse_shared_memory);
-          REXCVAR_DECLARE(bool, vulkan_submit_on_primary_buffer_end);
-          REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);"""
-          new = """REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);
+          header = Path("glue/rexglue-sdk-main/include/rex/graphics/flags.h")
+          source = header.read_text()
+          marker = "#if REX_HAS_VULKAN\\nREXCVAR_DECLARE(bool, vulkan_sparse_shared_memory);"
+          if marker not in source:
+              raise SystemExit("Expected Vulkan declaration marker not found in flags.h")
+          declarations = (
+              "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);\\n"
+              "REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);\\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);\\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);\\n"
+          )
+          for declaration in declarations.splitlines(keepends=True):
+              name = declaration.split("(", 1)[1].split(")", 1)[0]
+              if declaration.strip() not in source:
+                  source = source.replace(marker, declaration + marker, 1)
+                  marker = declaration + marker
+          header.write_text(source)
 
-          #if REX_HAS_VULKAN
-          REXCVAR_DECLARE(bool, vulkan_sparse_shared_memory);
-          REXCVAR_DECLARE(bool, vulkan_submit_on_primary_buffer_end);"""
-          if old not in source:
-              if "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);" in source and not source.split("REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);", 1)[0].rstrip().endswith("#if REX_HAS_VULKAN"):
-                  raise SystemExit("Vulkan CVar declaration already appears to be fixed; inspect flags.h")
-              raise SystemExit("Expected Vulkan CVar declaration block not found; refusing blind edit")
-          path.write_text(source.replace(old, new, 1))
-          print("Exposed vulkan_dynamic_rendering declaration for the iOS shared-source build.")
+          cpp = Path("glue/rexglue-sdk-main/src/graphics/vulkan/command_processor.cpp")
+          source = cpp.read_text()
+          anchor = '#include <rex/ui/vulkan/util.h>\\n'
+          if anchor not in source:
+              raise SystemExit("Expected command_processor.cpp include anchor not found")
+          definitions = (
+              '\\n// iOS shared-source compatibility: these requirements default off.\\n'
+              'REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader, false, "GPU/Vulkan",\\n'
+              '                    "Require Vulkan geometry shader support");\\n'
+              'REXCVAR_DEFINE_BOOL(vulkan_require_fill_mode_non_solid, false, "GPU/Vulkan",\\n'
+              '                    "Require Vulkan non-solid fill mode support");\\n'
+          )
+          if "REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader" not in source:
+              source = source.replace(anchor, anchor + definitions, 1)
+          cpp.write_text(source)
+          print("Applied shared Vulkan CVar declarations and defaults for the iOS build.")
           PY
 
       - name: Build vendored MoltenVK for iOS
