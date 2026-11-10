@@ -98,16 +98,51 @@ jobs:
           print("Applied shared Vulkan CVar declarations and defaults for the iOS build.")
           PY
 
+      - name: Prepare XeniOS host and iOS shader tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          XENIOS_DIR="$GITHUB_WORKSPACE/../XeniOS"
+          git clone --recurse-submodules --branch xenios https://github.com/xenios-jp/XeniOS.git "$XENIOS_DIR"
+
+          # XeniOS's iOS configure requires a native macOS xenia-shader-cc
+          # built from the same source revision, plus Apple's iPhoneOS MSC dylib.
+          cd "$XENIOS_DIR"
+          ./xenia-build.py msc
+          python3 -m pip install --upgrade meson mako pyyaml packaging
+
+          cmake -S . -B build-host -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-host --target xenia-shader-cc --parallel 6
+          HOST_SHADER_COMPILER="$(find build-host -type f -name xenia-shader-cc -perm -u+x -print -quit)"
+          if [[ -z "$HOST_SHADER_COMPILER" ]]; then
+            echo "::error::XeniOS native xenia-shader-cc was not built"
+            exit 1
+          fi
+          echo "XENIA_IOS_HOST_SHADER_COMPILER=$XENIOS_DIR/$HOST_SHADER_COMPILER" >> "$GITHUB_ENV"
+
+          MSC_IOS_DIR="$RUNNER_TEMP/msc-ios"
+          mkdir -p "$MSC_IOS_DIR"
+          gh release download ios-4.0.3 --repo xenios-jp/metal-shader-converter \
+            --pattern libmetalirconverter.dylib --dir "$MSC_IOS_DIR" --clobber
+          MSC_IOS_LIBRARY="$MSC_IOS_DIR/libmetalirconverter.dylib"
+          echo "bd6b729dcbde133a511d95130eb4d287a1e18b4170453f8b350e78a20bfc37aa  $MSC_IOS_LIBRARY" | shasum -a 256 -c -
+          codesign --verify --strict "$MSC_IOS_LIBRARY"
+          xcrun vtool -show-build "$MSC_IOS_LIBRARY" | grep "platform IOS"
+          echo "XENIA_IOS_SHADER_CONVERTER_LIBRARY=$MSC_IOS_LIBRARY" >> "$GITHUB_ENV"
+
       - name: Build XeniOS iOS MoltenVK dependency archives
         run: |
           set -euo pipefail
-          git clone --recurse-submodules --branch xenios https://github.com/xenios-jp/XeniOS.git "$GITHUB_WORKSPACE/../XeniOS"
-          cmake -S "$GITHUB_WORKSPACE/../XeniOS" -B "$GITHUB_WORKSPACE/../XeniOS/build-ios-xcode" -G Xcode \
+          XENIOS_DIR="$GITHUB_WORKSPACE/../XeniOS"
+          cmake -S "$XENIOS_DIR" -B "$XENIOS_DIR/build-ios-xcode" -G Xcode \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DXENIA_ENABLE_IOS_MOLTENVK=ON
-          cmake --build "$GITHUB_WORKSPACE/../XeniOS/build-ios-xcode" --config Release \
+            -DXENIA_ENABLE_IOS_MOLTENVK=ON \
+            -DXENIA_IOS_HOST_SHADER_COMPILER="$XENIA_IOS_HOST_SHADER_COMPILER" \
+            -DXENIA_IOS_SHADER_CONVERTER_LIBRARY="$XENIA_IOS_SHADER_CONVERTER_LIBRARY"
+          cmake --build "$XENIOS_DIR/build-ios-xcode" --config Release \
             --target MoltenVK MoltenVK_Common MoltenVK_ShaderConverter \
                      spirv-cross SPIRV-Tools-static --parallel 6
 
