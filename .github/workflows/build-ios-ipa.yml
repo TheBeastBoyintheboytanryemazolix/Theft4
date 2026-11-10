@@ -98,37 +98,18 @@ jobs:
           print("Applied shared Vulkan CVar declarations and defaults for the iOS build.")
           PY
 
-      - name: Build vendored MoltenVK for iOS
+      - name: Build XeniOS iOS MoltenVK dependency archives
         run: |
           set -euo pipefail
-          cd thirdparty/MoltenVK/MoltenVK
-          ./fetchDependencies --ios
-          make ios
-
-          # CMake's iOS bridge links the MoltenVK runtime and its static
-          # shader-converter dependencies from one directory. The upstream
-          # package emits these archives in separate iOS XCFrameworks, so
-          # stage the device slices together before configuring Theft4.
-          PACKAGE_ROOT="Package/Release"
-          IOS_LIB_DIR="$PACKAGE_ROOT/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
-          test -f "$IOS_LIB_DIR/libMoltenVK.a"
-          for archive in \
-            libMoltenVK_ShaderConverter.a \
-            libMoltenVK_Common.a \
-            libspirv-cross.a \
-            libSPIRV-Tools.a; do
-            source_path="$(find "$PACKAGE_ROOT" -type f -path '*/ios-arm64/*' -name "$archive" -print -quit)"
-            if [[ -z "$source_path" ]]; then
-              echo "::error::Missing iOS MoltenVK dependency archive: $archive"
-              find "$PACKAGE_ROOT" -type f -name '*.a' -print | sort
-              exit 1
-            fi
-            if [[ "$source_path" != "$IOS_LIB_DIR/$archive" ]]; then
-              cp "$source_path" "$IOS_LIB_DIR/$archive"
-            fi
-          done
-          echo "Staged MoltenVK iOS static archives:"
-          ls -lh "$IOS_LIB_DIR"/*.a
+          git clone --recurse-submodules --branch xenios https://github.com/xenios-jp/XeniOS.git "$GITHUB_WORKSPACE/../XeniOS"
+          cmake -S "$GITHUB_WORKSPACE/../XeniOS" -B "$GITHUB_WORKSPACE/../XeniOS/build-ios-xcode" -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DXENIA_ENABLE_IOS_MOLTENVK=ON
+          cmake --build "$GITHUB_WORKSPACE/../XeniOS/build-ios-xcode" --config Release \
+            --target MoltenVK MoltenVK_Common MoltenVK_ShaderConverter \
+                     spirv-cross SPIRV-Tools-static --parallel 6
 
       - name: Configure iOS Device Release
         run: |
@@ -138,8 +119,7 @@ jobs:
             -DTHEFT4_ENABLE_GTA4_NATIVE_BACKEND=ON \
             -DREXGLUE_RUNTIME_ONLY=ON \
             -DREXGLUE_HEADLESS_KERNEL=ON \
-            -DTHEFT4_MOLTENVK_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64" \
-            -DTHEFT4_XENIOS_IOS_LIB_DIR="$GITHUB_WORKSPACE/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
+            -DTHEFT4_XENIOS_IOS_LIB_DIR="$GITHUB_WORKSPACE/../XeniOS/build-ios-xcode/obj/iOS/Release"
 
       - name: Build Theft4 with the native GTA IV renderer
         run: cmake --build --preset theft4-device-release --parallel 3
