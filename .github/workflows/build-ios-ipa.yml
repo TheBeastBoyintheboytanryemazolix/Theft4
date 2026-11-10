@@ -109,6 +109,8 @@ jobs:
           # XeniOS's iOS configure requires a native macOS xenia-shader-cc
           # built from the same source revision, plus Apple's iPhoneOS MSC dylib.
           cd "$XENIOS_DIR"
+          # XeniOS's Vulkan CMake configure also requires the pinned host slangc compiler.
+          ./xenia-build.py slang
           ./xenia-build.py msc
           python3 -m pip install --upgrade meson mako pyyaml packaging
 
