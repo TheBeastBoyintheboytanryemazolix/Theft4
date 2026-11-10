@@ -105,6 +105,7 @@ jobs:
           set -euo pipefail
           XENIOS_DIR="$GITHUB_WORKSPACE/../XeniOS"
           git clone --recurse-submodules --branch xenios https://github.com/xenios-jp/XeniOS.git "$XENIOS_DIR"
+          cd "$XENIOS_DIR"
 
           # XeniOS creates xenia-shader-cc as an IMPORTED target after its
           # root-level imported-target configuration pass. Xcode validates
