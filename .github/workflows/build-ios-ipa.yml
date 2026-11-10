@@ -65,14 +65,14 @@ jobs:
 
           header = Path("glue/rexglue-sdk-main/include/rex/graphics/flags.h")
           source = header.read_text()
-          marker = "#if REX_HAS_VULKAN\\nREXCVAR_DECLARE(bool, vulkan_sparse_shared_memory);"
+          marker = "#if REX_HAS_VULKAN\nREXCVAR_DECLARE(bool, vulkan_sparse_shared_memory);"
           if marker not in source:
               raise SystemExit("Expected Vulkan declaration marker not found in flags.h")
           declarations = (
-              "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);\\n"
+              "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);\n"
+              "REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);\n"
           )
           for declaration in declarations.splitlines(keepends=True):
               name = declaration.split("(", 1)[1].split(")", 1)[0]
@@ -83,15 +83,15 @@ jobs:
 
           cpp = Path("glue/rexglue-sdk-main/src/graphics/vulkan/command_processor.cpp")
           source = cpp.read_text()
-          anchor = '#include <rex/ui/vulkan/util.h>\\n'
+          anchor = '#include <rex/ui/vulkan/util.h>\n'
           if anchor not in source:
               raise SystemExit("Expected command_processor.cpp include anchor not found")
           definitions = (
-              '\\n// iOS shared-source compatibility: these requirements default off.\\n'
-              'REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader, false, "GPU/Vulkan",\\n'
-              '                    "Require Vulkan geometry shader support");\\n'
-              'REXCVAR_DEFINE_BOOL(vulkan_require_fill_mode_non_solid, false, "GPU/Vulkan",\\n'
-              '                    "Require Vulkan non-solid fill mode support");\\n'
+              '\n// iOS shared-source compatibility: these requirements default off.\n'
+              'REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader, false, "GPU/Vulkan",\n'
+              '                    "Require Vulkan geometry shader support");\n'
+              'REXCVAR_DEFINE_BOOL(vulkan_require_fill_mode_non_solid, false, "GPU/Vulkan",\n'
+              '                    "Require Vulkan non-solid fill mode support");\n'
           )
           if "REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader" not in source:
               source = source.replace(anchor, anchor + definitions, 1)
