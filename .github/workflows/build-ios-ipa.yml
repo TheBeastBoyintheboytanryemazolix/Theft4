@@ -105,6 +105,31 @@ jobs:
           ./fetchDependencies --ios
           make ios
 
+          # CMake's iOS bridge links the MoltenVK runtime and its static
+          # shader-converter dependencies from one directory. The upstream
+          # package emits these archives in separate iOS XCFrameworks, so
+          # stage the device slices together before configuring Theft4.
+          PACKAGE_ROOT="Package/Release"
+          IOS_LIB_DIR="$PACKAGE_ROOT/MoltenVK/static/MoltenVK.xcframework/ios-arm64"
+          test -f "$IOS_LIB_DIR/libMoltenVK.a"
+          for archive in \
+            libMoltenVK_ShaderConverter.a \
+            libMoltenVK_Common.a \
+            libspirv-cross.a \
+            libSPIRV-Tools.a; do
+            source_path="$(find "$PACKAGE_ROOT" -type f -path '*/ios-arm64/*' -name "$archive" -print -quit)"
+            if [[ -z "$source_path" ]]; then
+              echo "::error::Missing iOS MoltenVK dependency archive: $archive"
+              find "$PACKAGE_ROOT" -type f -name '*.a' -print | sort
+              exit 1
+            fi
+            if [[ "$source_path" != "$IOS_LIB_DIR/$archive" ]]; then
+              cp "$source_path" "$IOS_LIB_DIR/$archive"
+            fi
+          done
+          echo "Staged MoltenVK iOS static archives:"
+          ls -lh "$IOS_LIB_DIR"/*.a
+
       - name: Configure iOS Device Release
         run: |
           cmake --preset ios-device-release \
