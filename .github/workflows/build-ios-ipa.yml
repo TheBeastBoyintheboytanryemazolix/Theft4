@@ -106,6 +106,29 @@ jobs:
           XENIOS_DIR="$GITHUB_WORKSPACE/../XeniOS"
           git clone --recurse-submodules --branch xenios https://github.com/xenios-jp/XeniOS.git "$XENIOS_DIR"
 
+          # XeniOS creates xenia-shader-cc as an IMPORTED target after its
+          # root-level imported-target configuration pass. Xcode validates
+          # every configuration, so give the same native host tool an
+          # explicit location for Debug, Checked, and Release.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          shader_cmake = Path("cmake/ios/ShaderCompiler.cmake")
+          source = shader_cmake.read_text()
+          old = '''set_target_properties(xenia-shader-cc PROPERTIES
+            IMPORTED_LOCATION "${XENIA_IOS_HOST_SHADER_COMPILER}")'''
+          new = '''set_target_properties(xenia-shader-cc PROPERTIES
+            IMPORTED_CONFIGURATIONS "DEBUG;CHECKED;RELEASE"
+            IMPORTED_LOCATION "${XENIA_IOS_HOST_SHADER_COMPILER}"
+            IMPORTED_LOCATION_DEBUG "${XENIA_IOS_HOST_SHADER_COMPILER}"
+            IMPORTED_LOCATION_CHECKED "${XENIA_IOS_HOST_SHADER_COMPILER}"
+            IMPORTED_LOCATION_RELEASE "${XENIA_IOS_HOST_SHADER_COMPILER}")'''
+          if old not in source:
+              raise SystemExit("Expected xenia-shader-cc imported target block not found")
+          shader_cmake.write_text(source.replace(old, new, 1))
+          print("Configured xenia-shader-cc for all Xcode configurations.")
+          PY
+
           # XeniOS's iOS configure requires a native macOS xenia-shader-cc
           # built from the same source revision, plus Apple's iPhoneOS MSC dylib.
           cd "$XENIOS_DIR"
