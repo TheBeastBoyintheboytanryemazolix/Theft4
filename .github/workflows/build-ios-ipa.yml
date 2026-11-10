@@ -65,15 +65,15 @@ jobs:
 
           header = Path("glue/rexglue-sdk-main/include/rex/graphics/flags.h")
           source = header.read_text()
-          marker = "#if REX_HAS_VULKAN\\n"
+          marker = "#if REX_HAS_VULKAN\n"
           if marker not in source:
               raise SystemExit("Expected Vulkan feature guard not found in flags.h")
           prefix, suffix = source.split(marker, 1)
           declarations = (
-              "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);\\n"
-              "REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);\\n"
+              "REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);\n"
+              "REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);\n"
+              "REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);\n"
           )
           for declaration in declarations.splitlines(keepends=True):
               if declaration.strip() not in prefix:
