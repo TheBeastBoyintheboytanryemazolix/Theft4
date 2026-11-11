@@ -168,7 +168,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXLOG_INFO(
             "Theft4 device profile: {} pipeline-prewarm={} sparse-texture-walks={} detailed-profile=false "
             "profile-autostart=false",
-            device_profile, !a19_profile, a19_profile);
+            device_profile, !a19_profile, sparse_texture_walks);
 
         // The launch policy independently selects scene and drawable sizes.
         // Native hooks derive scene = logical video / 1.5 for FSR Quality.
