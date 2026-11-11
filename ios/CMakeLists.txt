@@ -465,10 +465,30 @@ if(THEFT4_ENABLE_GAME_STARTUP)
     # all real exports, including ones found later by guest ordinal lookup.
     target_link_options(theft4_core_bridge INTERFACE "LINKER:-force_load,$<TARGET_FILE:rexruntime>")
 
-    # XeniOS is kept as an independent reference app, but its locally built,
-    # public MoltenVK archive gives us a fast device capability gate before the
-    # full LibertyRecomp Vulkan source closure is enabled for iOS. No XeniOS
-    # emulator code is linked into Theft4.
+    # Link the vendored iOS MoltenVK archive directly. The iOS target compiles
+    # production Vulkan entry points even when the optional XeniOS probe is not
+    # enabled; without this loader, vkDestroyInstance and vkGetInstanceProcAddr
+    # remain unresolved at the final app link.
+    set(THEFT4_MOLTENVK_IOS_LIB_DIR "" CACHE PATH
+        "Directory containing the device libMoltenVK.a from the iOS XCFramework")
+    if(NOT EXISTS "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
+        message(FATAL_ERROR
+            "The iOS Vulkan sources require MoltenVK. Build the vendored iOS archive "
+            "and pass THEFT4_MOLTENVK_IOS_LIB_DIR pointing to its ios-arm64 directory.")
+    endif()
+    target_link_libraries(theft4_core_bridge PRIVATE
+        "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a"
+        "-framework Metal"
+        "-framework Foundation"
+        "-framework CoreFoundation"
+        "-framework CoreGraphics"
+        "-framework IOSurface")
+    target_link_options(theft4_core_bridge INTERFACE
+        "LINKER:-force_load,${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
+
+    # XeniOS remains an optional reference/probe dependency. Its additional
+    # shader and validation archives are separate from the required Vulkan
+    # loader above; no XeniOS emulator code is linked into Theft4.
     set(THEFT4_XENIOS_IOS_LIB_DIR
         "${CMAKE_SOURCE_DIR}/../XeniOS/build-ios-xcode/obj/iOS/Release"
         CACHE PATH "Optional XeniOS iOS library directory for MoltenVK validation")
