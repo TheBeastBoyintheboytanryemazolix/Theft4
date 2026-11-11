@@ -221,13 +221,14 @@ jobs:
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DXENIA_ENABLE_IOS_MOLTENVK=ON \
             -DXENIA_IOS_HOST_SHADER_COMPILER="$XENIA_IOS_HOST_SHADER_COMPILER" \
             -DXENIA_IOS_SHADER_CONVERTER_LIBRARY="$XENIA_IOS_SHADER_CONVERTER_LIBRARY" \
             -DXENIA_IOS_COMPATIBILITY_DATA_DIR="$XENIOS_DIR/build/data_repos/game-compatibility"
+          # XeniOS deliberately excludes its macOS-only MoltenVK archive targets
+          # when XE_PLATFORM_IOS is enabled. Build only the shared Apple targets
+          # that actually exist in the iOS Xcode project.
           cmake --build "$XENIOS_DIR/build-ios-xcode" --config Release \
-            --target MoltenVK MoltenVK_Common MoltenVK_ShaderConverter \
-                     spirv-cross SPIRV-Tools-static --parallel 6
+            --target spirv-cross SPIRV-Tools-static --parallel 6
 
       - name: Configure iOS Device Release
         run: |
