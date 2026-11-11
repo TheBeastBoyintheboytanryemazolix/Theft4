@@ -128,6 +128,37 @@ jobs:
               raise SystemExit("Expected xenia-shader-cc imported target block not found")
           shader_cmake.write_text(source.replace(old, new, 1))
           print("Configured xenia-shader-cc for all Xcode configurations.")
+          
+          # Xcode validates imported targets against every build configuration.
+          # XeniOS's iOS third-party setup may only provide Release locations for
+          # these host-side tools; map Debug/Checked to the same available binary.
+          third_party_cmake = Path("third_party/CMakeLists.txt")
+          third_party_source = third_party_cmake.read_text()
+          compatibility = r"""
+          
+          # iOS/Xcode imported-tool configuration compatibility.
+          foreach(_xe_tool spirv_to_dxil xenia-third-party-metal-shader-converter)
+            if(TARGET ${_xe_tool})
+              get_target_property(_xe_tool_location ${_xe_tool} IMPORTED_LOCATION)
+              foreach(_xe_config DEBUG CHECKED RELEASE)
+                get_target_property(_xe_config_location ${_xe_tool} IMPORTED_LOCATION_${_xe_config})
+                if(NOT _xe_config_location)
+                  if(_xe_tool_location)
+                    set_property(TARGET ${_xe_tool} PROPERTY IMPORTED_LOCATION_${_xe_config} "${_xe_tool_location}")
+                  else()
+                    get_target_property(_xe_release_location ${_xe_tool} IMPORTED_LOCATION_RELEASE)
+                    if(_xe_release_location)
+                      set_property(TARGET ${_xe_tool} PROPERTY IMPORTED_LOCATION_${_xe_config} "${_xe_release_location}")
+                    endif()
+                  endif()
+                endif()
+              endforeach()
+            endif()
+          endforeach()
+          """
+          if "iOS/Xcode imported-tool configuration compatibility." not in third_party_source:
+              third_party_cmake.write_text(third_party_source + compatibility)
+
           PY
 
           # XeniOS's iOS configure requires a native macOS xenia-shader-cc
