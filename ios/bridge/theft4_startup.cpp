@@ -161,7 +161,12 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             device_profile_value ? device_profile_value : "generic";
         const bool a19_profile = device_profile == "a19";
         REXCVAR_SET(gta4_native_pipeline_prewarm, !a19_profile);
-        REXCVAR_SET(gta4_native_sparse_texture_walks, a19_profile);
+        // Sparse walking preserves the same used-stage set while avoiding a
+        // full texture-slot scan. Keep A19's prewarm policy separate from this
+        // CPU-side optimization, and enable it on memory-constrained iPads too.
+        const bool sparse_texture_walks =
+            a19_profile || device_profile == "legacy-ipad";
+        REXCVAR_SET(gta4_native_sparse_texture_walks, sparse_texture_walks);
         REXCVAR_SET(gta4_profile_native_detailed_gpu, false);
         REXCVAR_SET(gta4_profile_native_detailed_cpu, false);
         REXCVAR_SET(gta4_profile_native_autostart, false);
