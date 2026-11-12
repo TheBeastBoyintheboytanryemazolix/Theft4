@@ -42,30 +42,12 @@ extern "C" void theft4_ios_audio_hotpaths_link_anchor() {}
 // compilation can't starve audio production. The generated AOT body remains
 // authoritative; this wrapper changes scheduling only.
 extern "C" void sub_821909D0(PPCContext& ctx, uint8_t* base) {
-  // USER_INTERACTIVE is intended for latency-critical UI work and can compete
-  // with rendering. Keep audio elevated but use USER_INITIATED on constrained
-  // legacy iPads; retain an explicit override for device A/B testing.
-  const char* profile = std::getenv("THEFT4_DEVICE_PROFILE");
-  const bool legacy_ipad = profile && std::strcmp(profile, "legacy-ipad") == 0;
-  qos_class_t qos = legacy_ipad ? QOS_CLASS_USER_INITIATED
-                                : QOS_CLASS_USER_INTERACTIVE;
-  const char* qos_override = std::getenv("THEFT4_AUDIO_QOS");
-  if (qos_override) {
-    if (std::strcmp(qos_override, "interactive") == 0) {
-      qos = QOS_CLASS_USER_INTERACTIVE;
-    } else if (std::strcmp(qos_override, "user-initiated") == 0) {
-      qos = QOS_CLASS_USER_INITIATED;
-    } else {
-      REXLOG_WARN("Ignoring invalid THEFT4_AUDIO_QOS value: {}", qos_override);
-    }
-  }
-  const int result = pthread_set_qos_class_self_np(qos, 0);
+  const int result =
+      pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
   if (result == 0) {
-    REXLOG_INFO("Theft4 GTA audio mixer QoS set to {}",
-                qos == QOS_CLASS_USER_INTERACTIVE ? "user-interactive"
-                                                   : "user-initiated");
+    REXLOG_INFO("Theft4 GTA audio mixer promoted to user-interactive QoS");
   } else {
-    REXLOG_WARN("Theft4 could not set GTA audio mixer QoS: {}", result);
+    REXLOG_WARN("Theft4 could not promote GTA audio mixer QoS: {}", result);
   }
   __imp__sub_821909D0(ctx, base);
 }

@@ -160,31 +160,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         const std::string_view device_profile =
             device_profile_value ? device_profile_value : "generic";
         const bool a19_profile = device_profile == "a19";
-        const bool legacy_ipad_profile = device_profile == "legacy-ipad";
-        // Avoid speculative pipeline work on constrained iPads. Exact first-use
-        // compilation remains available and is not disabled by this setting.
-        const char* prewarm_override = std::getenv("THEFT4_PIPELINE_PREWARM");
-        const bool pipeline_prewarm = prewarm_override
-            ? std::string_view(prewarm_override) == "1"
-            : !a19_profile && !legacy_ipad_profile;
-        if (prewarm_override && std::string_view(prewarm_override) != "0" &&
-            std::string_view(prewarm_override) != "1") {
-            throw std::runtime_error("THEFT4_PIPELINE_PREWARM must be 0 or 1");
-        }
-        REXCVAR_SET(gta4_native_pipeline_prewarm, pipeline_prewarm);
-        // Do not let an unfinished pipeline block the only render worker.
-        // The native backend defers that draw and retries when compilation ends.
-        const char* legacy_async_pipeline_override =
-            std::getenv("THEFT4_ASYNC_PIPELINES");
-        const bool legacy_async_pipeline_no_wait = legacy_async_pipeline_override
-            ? std::string_view(legacy_async_pipeline_override) == "1"
-            : legacy_ipad_profile;
-        if (legacy_async_pipeline_override &&
-            std::string_view(legacy_async_pipeline_override) != "0" &&
-            std::string_view(legacy_async_pipeline_override) != "1") {
-            throw std::runtime_error("THEFT4_ASYNC_PIPELINES must be 0 or 1");
-        }
-        REXCVAR_SET(gta4_native_async_pipeline_no_wait, legacy_async_pipeline_no_wait);
+        REXCVAR_SET(gta4_native_pipeline_prewarm, !a19_profile);
         // Sparse walking preserves the same used-stage set while avoiding a
         // full texture-slot scan. Keep A19's prewarm policy separate from this
         // CPU-side optimization, and enable it on memory-constrained iPads too.
@@ -197,7 +173,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXLOG_INFO(
             "Theft4 device profile: {} pipeline-prewarm={} sparse-texture-walks={} detailed-profile=false "
             "profile-autostart=false",
-            device_profile, pipeline_prewarm, sparse_texture_walks);
+            device_profile, !a19_profile, sparse_texture_walks);
 
         // The launch policy independently selects scene and drawable sizes.
         // Native hooks derive scene = logical video / 1.5 for FSR Quality.
@@ -349,7 +325,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         // buffers, upload storage, descriptors, constants, query/readback state
         // and submission fences per slot.  Preserve the launch override so a
         // device run can immediately return to the one-slot stability baseline.
-        uint32_t native_frame_slots = legacy_ipad_profile ? 1u : 2u;
+        uint32_t native_frame_slots = 2;
         const char* frames = std::getenv("THEFT4_NATIVE_FRAMES_IN_FLIGHT");
         if (frames) {
             const std::string_view value(frames);
@@ -361,7 +337,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         }
         REXCVAR_SET(gta4_native_frames_in_flight, native_frame_slots);
         REXLOG_INFO("Theft4 native frame-resource slots set to {} ({})",
-                    native_frame_slots, frames ? "launch override" : "device-profile default");
+                    native_frame_slots, frames ? "launch override" : "iOS default");
 #ifdef THEFT4_LAB_BUILD
         // A manual performance capture is bounded to a short, explicit run.
         // Spend that diagnostic budget on pass-level GPU timestamps so an
