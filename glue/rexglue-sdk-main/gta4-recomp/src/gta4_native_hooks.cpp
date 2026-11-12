@@ -365,61 +365,7 @@ gta4::frame_limiter::State g_native_frame_limiter_state;
 uint64_t g_native_frame_limiter_present_count = 0;
 
 #ifdef THEFT4_LAB_BUILD
-// iOS may resume a short sleep several milliseconds after its requested
-// deadline. Keep the established fixed limiter phase, but leave a bounded
-// final interval for an active wait so an otherwise-ready frame does not miss
-// the next display opportunity solely because of scheduler wake latency.
-//
-// The M5 idle pacing capture measured up to 3.015 ms of wake overshoot, so a
-// fixed 2 ms margin still produced a visible long/short frame cadence. Start
-// at 3.5 ms, learn the current device's observed overshoot, and cap the cost
-// at 4 ms per capped frame (12% of one core at 30 FPS). This function is
-// called while g_native_frame_limiter_mutex is held, so the adaptive state is
-// naturally serialized with the limiter state.
-constexpr auto kLabPacingMinimumActiveWaitMargin = std::chrono::microseconds(2000);
-constexpr auto kLabPacingInitialActiveWaitMargin = std::chrono::microseconds(3500);
-constexpr auto kLabPacingMaximumActiveWaitMargin = std::chrono::microseconds(4000);
-constexpr auto kLabPacingWakeSafetyMargin = std::chrono::microseconds(500);
-std::chrono::microseconds g_lab_pacing_active_wait_margin = kLabPacingInitialActiveWaitMargin;
-
-void UpdateLabPacingActiveWaitMargin(std::chrono::steady_clock::duration observed_overshoot) {
-  using Microseconds = std::chrono::microseconds;
-  const auto overshoot =
-      std::max(Microseconds::zero(), std::chrono::duration_cast<Microseconds>(observed_overshoot));
-  const auto target =
-      std::clamp(overshoot + kLabPacingWakeSafetyMargin, kLabPacingMinimumActiveWaitMargin,
-                 kLabPacingMaximumActiveWaitMargin);
-  if (target >= g_lab_pacing_active_wait_margin) {
-    // React immediately when the scheduler proves the current margin is too small.
-    g_lab_pacing_active_wait_margin = target;
-    return;
-  }
-
-  // Decay slowly on quieter samples so one favorable wake does not reintroduce
-  // the alternating cadence on the next normal scheduler delay.
-  g_lab_pacing_active_wait_margin =
-      Microseconds((g_lab_pacing_active_wait_margin.count() * 7 + target.count()) / 8);
-}
-
-void WaitForLabPacingDeadline(std::chrono::steady_clock::time_point deadline) {
-  using Clock = std::chrono::steady_clock;
-  const auto now = Clock::now();
-  if (now >= deadline) {
-    return;
-  }
-  const auto remaining = deadline - now;
-  if (remaining > g_lab_pacing_active_wait_margin) {
-    const auto sleep_deadline = deadline - g_lab_pacing_active_wait_margin;
-    std::this_thread::sleep_until(sleep_deadline);
-    UpdateLabPacingActiveWaitMargin(Clock::now() - sleep_deadline);
-  }
-  while (Clock::now() < deadline) {}
-}
-#endif
-
-#ifdef THEFT4_LAB_BUILD
-void PaceNativePresent(uint32_t submitted_frame, pacing::Sample* observation = nullptr,
-                       int64_t display_target_ns = 0) {
+void PaceNativePresent(uint32_t submitted_frame, pacing::Sample* observation = nullptr) {
 #else
 void PaceNativePresent(uint32_t submitted_frame) {
 #endif
@@ -442,18 +388,8 @@ void PaceNativePresent(uint32_t submitted_frame) {
 #endif
   const int64_t now_ns =
       std::chrono::duration_cast<Nanoseconds>(Clock::now().time_since_epoch()).count();
-#ifdef THEFT4_LAB_BUILD
-  static bool previous_pre_submit = false; // Protected by limiter mutex.
-  const bool pre_submit = display_target_ns != 0;
-  if (previous_pre_submit != pre_submit) g_native_frame_limiter_state = {};
-  previous_pre_submit = pre_submit;
-  const auto decision = pre_submit
-      ? gta4::frame_limiter::PlanDisplayAligned(g_native_frame_limiter_state, requested_limit,
-                                               now_ns, display_target_ns)
-      : gta4::frame_limiter::Plan(g_native_frame_limiter_state, requested_limit, now_ns);
-#else
-  const auto decision = gta4::frame_limiter::Plan(g_native_frame_limiter_state, requested_limit, now_ns);
-#endif
+  const auto decision =
+      gta4::frame_limiter::Plan(g_native_frame_limiter_state, requested_limit, now_ns);
   g_native_frame_limiter_state = decision.next_state;
   ++g_native_frame_limiter_present_count;
 #ifdef THEFT4_LAB_BUILD
@@ -485,11 +421,7 @@ void PaceNativePresent(uint32_t submitted_frame) {
           std::chrono::duration_cast<Nanoseconds>(Clock::now().time_since_epoch()).count();
     }
 #endif
-#ifdef THEFT4_LAB_BUILD
-    WaitForLabPacingDeadline(Clock::time_point(Nanoseconds(decision.wait_until_ns)));
-#else
     std::this_thread::sleep_until(Clock::time_point(Nanoseconds(decision.wait_until_ns)));
-#endif
   }
 #ifdef THEFT4_LAB_BUILD
   if (observation) {
@@ -518,7 +450,7 @@ void PaceNativePresent(uint32_t submitted_frame) {
     observation->limiter_end = rex::chrono::Clock::QueryHostTickCount();
   }
 #if REX_PLATFORM_IOS
-  theft4_frame_stage_record(THEFT4_STAGE_LIMITER_END, submitted_frame, display_target_ns != 0, 0);
+  theft4_frame_stage_record(THEFT4_STAGE_LIMITER_END, submitted_frame, 0, 0);
 #endif
 #endif
 }
@@ -7484,17 +7416,6 @@ extern "C" void sub_82A467D8(PPCContext& ctx, uint8_t* base) {
   }
   g_last_present_frontbuffer.store(command.frontbuffer_texture, std::memory_order_relaxed);
 #ifdef THEFT4_LAB_BUILD
-  int64_t display_target = 0;
-#if REX_PLATFORM_IOS
-  static const bool display_pacing = [] {
-    const char* value = std::getenv("THEFT4_DISPLAY_PACING");
-    return value && std::strcmp(value, "1") == 0;
-  }();
-  if (display_pacing && rex::cvar::Query<uint32_t>("gta4_frame_limit") == 30)
-    display_target = theft4_pacing_display_target_ns();
-#endif
-  if (display_target)
-    PaceNativePresent(submitted_frame, observe_pacing ? &pacing_sample : nullptr, display_target);
   if (observe_pacing) {
     pacing_sample.frame = submitted_frame;
     pacing_sample.submit_begin = rex::chrono::Clock::QueryHostTickCount();
@@ -7510,7 +7431,7 @@ extern "C" void sub_82A467D8(PPCContext& ctx, uint8_t* base) {
     pacing_sample.submitted = submitted;
     pacing_sample.submit_end = rex::chrono::Clock::QueryHostTickCount();
   }
-  if (submitted && !display_target) {
+  if (submitted) {
     PaceNativePresent(submitted_frame, observe_pacing ? &pacing_sample : nullptr);
   }
   if (observe_pacing) pacing::capture.Record(pacing_sample);

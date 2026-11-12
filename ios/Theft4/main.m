@@ -2249,9 +2249,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // any renderer environment variables from the controls.
         [self applyLimitedMemoryCaps];
         setenv("THEFT4_CONSTANT_REUSE", _constantReuse.on ? "1" : "0", 1);
-        // The display-aligned limiter experiment was rejected; do not let an
-        // inherited flag reactivate it in this app process.
-        unsetenv("THEFT4_DISPLAY_PACING");
         if (_performanceCapture.on) [self beginPublicationCapture];
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.
