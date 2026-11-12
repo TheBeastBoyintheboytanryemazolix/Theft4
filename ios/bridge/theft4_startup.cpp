@@ -470,9 +470,20 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
                 throw std::runtime_error("THEFT4_DRAW_BOUNDS must be 0 or 1");
             const bool enabled = value == "1";
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu, enabled);
-            // The broader scissored mode is deliberately excluded from this
-            // experiment because it can execute many UI vertices on the CPU.
+            // The broader scissored mode is deliberately excluded because it
+            // can execute many UI vertices on the CPU.
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
+        } else if (device_profile == "legacy-ipad") {
+            // A16-class GPUs can pay for oversized EDRAM ownership ranges on
+            // unclipped draws. Estimate only the existing safe, unscissored
+            // cases so the renderer can transfer the smaller proven range.
+            // Unsupported shaders or GPU-newer inputs retain the full-range
+            // fallback; THEFT4_DRAW_BOUNDS=0 restores the baseline path.
+            REXCVAR_SET(execute_unclipped_draw_vs_on_cpu, true);
+            REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
+            REXLOG_INFO(
+                "Theft4 legacy iPad unclipped-draw extent estimation enabled "
+                "(THEFT4_DRAW_BOUNDS=0 restores baseline)");
         }
         // Keep the mechanism and its diagnostic logging independently
         // controllable so a scored Release run doesn't pay for periodic log
