@@ -627,7 +627,7 @@ static void bootEvent(void *context, const char *event) {
         @"Theft4ReflectionQuality": @0,
         @"Theft4AntiAliasing": @2,
         @"Theft4Round1ConstantReuse": @YES,
-        @"Theft4Round1FrameStageTiming": @YES,
+        @"Theft4Round1FrameStageTiming": @YES
     }];
     // Apply this new all-on baseline once to existing installations. Subsequent
     // launches preserve the user's individual switch choices for rollback.

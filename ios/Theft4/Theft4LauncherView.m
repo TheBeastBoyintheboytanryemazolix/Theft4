@@ -352,7 +352,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         [self setting:@"LONG PERFORMANCE CAPTURE" detail:@"Off each time the app opens. Enable before pressing Play to record low-overhead frame publication times for this session. Hold the frame-time graph to start, mark, or stop a capture. Double-tap for a separate short detailed profile; this switch is not required." toggle:_performanceCapture],
         _downloadLogButton,
         Copy(@"REVERSIBLE PERFORMANCE EXPERIMENTS", 13, YES),
-        Copy(@"Changes apply on the next game launch. Turn both optimization switches off to restore the previous renderer and limiter paths. No save files or graphics-quality settings are changed.", 12, NO),
+        Copy(@"Changes apply on the next game launch. Shader constant reuse can be switched off to restore its previous renderer path. Frame-stage timing only affects diagnostic captures. No save files or graphics-quality settings are changed.", 12, NO),
         [self setting:@"SHADER CONSTANT REUSE" detail:@"Reuse immutable shader data only when the compiled shader cannot read the changed values. Unknown accesses use the original path. Default: on for this test round." toggle:_constantReuse],
         [self setting:@"FRAME-STAGE TIMING" detail:@"Include guest, worker, queue, fence-observation and display-target timestamps in long captures. No per-draw timestamps or GPU queries. Default: on; turn off to compare capture overhead." toggle:_frameStageTiming],
         Copy(@"SAVE TRANSFER", 13, YES),
