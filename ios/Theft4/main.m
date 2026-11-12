@@ -1514,7 +1514,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         case Theft4AutomaticGraphicsTierLow:
             _bringupOverlay.renderResolution.selectedSegmentIndex = 0;
             _bringupOverlay.fsrUpscaling.on = YES;
-            _shadowQuality.selectedSegmentIndex = 1; // Optimized requires shadow cache validation.
+            _shadowQuality.selectedSegmentIndex = 0; // 128 base map and 0.75x shadow range.
             _drawDistance.selectedSegmentIndex = 0;
             _motionBlur.on = NO;
             _depthOfField.on = NO;
@@ -2255,7 +2255,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         setenv("THEFT4_ANISOTROPY", _anisotropicFiltering.on ? "4x" : "1x", 1);
         setenv("THEFT4_MOTION_BLUR", _motionBlur.on ? "1" : "0", 1);
         setenv("THEFT4_DEPTH_OF_FIELD", _depthOfField.on ? "1" : "0", 1);
-        setenv("THEFT4_SHADOW_CACHE_TRACE", "1", 1); // 0.2.1 diagnostic build only.
+        setenv("THEFT4_FSR_UPSCALING", _bringupOverlay.fsrUpscaling.on ? "1" : "0", 1);
+        // Keep optional shadow-cache instrumentation out of normal gameplay.
+        setenv("THEFT4_SHADOW_CACHE_TRACE", "0", 1);
         const char *shadowPresets[] = {"optimized", "original", "enhanced", "ultra"};
         const char *distancePresets[] = {"0.70", "1", "2", "3"};
         const char *reflectionPresets[] = {"original", "1080p", "full"};
