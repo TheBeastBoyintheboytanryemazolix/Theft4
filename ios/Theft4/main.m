@@ -479,7 +479,6 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     UISwitch *_performanceCapture;
     UISwitch *_constantReuse;
     UISwitch *_frameStageTiming;
-    UISwitch *_displayPacing;
     UIButton *_downloadLogButton;
     UIButton *_exportSavesButton;
     UIButton *_importSavesButton;
@@ -577,9 +576,14 @@ static Theft4AutomaticGraphicsTier automaticGraphicsTier(void) {
     if (!machine && uname(&systemInfo) == 0) machine = systemInfo.machine;
     if (!machine) return Theft4AutomaticGraphicsTierOriginal;
     unsigned major = 0, minor = 0;
-    if (sscanf(machine, "iPad%u,%u", &major, &minor) == 2)
-        return major == 17 && minor >= 1 && minor <= 4
-            ? Theft4AutomaticGraphicsTierM5IPad : Theft4AutomaticGraphicsTierOriginal;
+    if (sscanf(machine, "iPad%u,%u", &major, &minor) == 2) {
+        if (major == 17 && minor >= 1 && minor <= 4)
+            return Theft4AutomaticGraphicsTierM5IPad;
+        // Pre-M iPads in the legacy memory profile need the low-cost preset;
+        // treating every non-M5 iPad as Original left A16 on the heavier path.
+        return strcmp(getenv("THEFT4_DEVICE_PROFILE") ?: "", "legacy-ipad") == 0
+            ? Theft4AutomaticGraphicsTierLow : Theft4AutomaticGraphicsTierOriginal;
+    }
     if (sscanf(machine, "iPhone%u,%u", &major, &minor) != 2)
         return Theft4AutomaticGraphicsTierOriginal;
     if (major <= 16 || (major == 18 && minor == 4))
@@ -624,7 +628,6 @@ static void bootEvent(void *context, const char *event) {
         @"Theft4AntiAliasing": @2,
         @"Theft4Round1ConstantReuse": @YES,
         @"Theft4Round1FrameStageTiming": @YES,
-        @"Theft4Round1DisplayPacing": @YES
     }];
     // Apply this new all-on baseline once to existing installations. Subsequent
     // launches preserve the user's individual switch choices for rollback.
@@ -632,7 +635,6 @@ static void bootEvent(void *context, const char *event) {
     if (![NSUserDefaults.standardUserDefaults boolForKey:round1DefaultsMigration]) {
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"Theft4Round1ConstantReuse"];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"Theft4Round1FrameStageTiming"];
-        [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"Theft4Round1DisplayPacing"];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:round1DefaultsMigration];
     }
     // Old builds stored Original=0 and Highest=1. Preserve that choice when
@@ -701,7 +703,6 @@ static void bootEvent(void *context, const char *event) {
     _performanceCapture = _bringupOverlay.performanceCapture;
     _constantReuse = _bringupOverlay.constantReuse;
     _frameStageTiming = _bringupOverlay.frameStageTiming;
-    _displayPacing = _bringupOverlay.displayPacing;
     _downloadLogButton = _bringupOverlay.downloadLogButton;
     [_downloadLogButton addTarget:self action:@selector(downloadLatestLogCapture)
                  forControlEvents:UIControlEventTouchUpInside];
@@ -712,12 +713,12 @@ static void bootEvent(void *context, const char *event) {
     [_importSavesButton addTarget:self action:@selector(importSavesFromFiles)
                 forControlEvents:UIControlEventTouchUpInside];
     NSArray *toggles = @[_showFrameTime,_showFPS,_showControls,_anisotropicFiltering,_enhancedOutput,_fsrBoost,
-                         _motionBlur,_depthOfField,_constantReuse,_frameStageTiming,_displayPacing];
+                         _motionBlur,_depthOfField,_constantReuse,_frameStageTiming];
     NSArray *keys = @[@"Theft4ShowFrameTime",@"Theft4ShowFPS",@"Theft4ShowTouchControls",@"Theft4AnisotropicFiltering",
                       @"Theft4EnhancedOutput1080p",@"Theft4ExperimentalFSRBoost",@"Theft4MotionBlur",
                       @"Theft4DepthOfField",
                       @"Theft4Round1ConstantReuse",
-                      @"Theft4Round1FrameStageTiming",@"Theft4Round1DisplayPacing"];
+                      @"Theft4Round1FrameStageTiming"];
     for (NSUInteger i=0;i<toggles.count;++i) {
         UISwitch *toggle = toggles[i];
         toggle.on = [NSUserDefaults.standardUserDefaults boolForKey:keys[i]];
@@ -1453,7 +1454,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     [self applyLimitedMemoryCaps];
     [NSUserDefaults.standardUserDefaults setBool:_constantReuse.on forKey:@"Theft4Round1ConstantReuse"];
     [NSUserDefaults.standardUserDefaults setBool:_frameStageTiming.on forKey:@"Theft4Round1FrameStageTiming"];
-    [NSUserDefaults.standardUserDefaults setBool:_displayPacing.on forKey:@"Theft4Round1DisplayPacing"];
     if (sender == _fsrBoost && _fsrBoost.on) _enhancedOutput.on = YES;
     if (sender == _enhancedOutput && !_enhancedOutput.on) _fsrBoost.on = NO;
     [NSUserDefaults.standardUserDefaults setBool:_fsrBoost.on forKey:@"Theft4ExperimentalFSRBoost"];
@@ -1551,7 +1551,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     // ceiling, with settings that add render targets, samples, or draws removed.
     if (_bringupOverlay.renderResolution.selectedSegmentIndex > 2)
         _bringupOverlay.renderResolution.selectedSegmentIndex = 2;
-    _bringupOverlay.fsrUpscaling.on = YES;
+    // Keep the memory-safe scene/output limits, but preserve the user's FSR1
+    // choice. The native/bilinear path is supported under the same 1080p cap.
     if (_shadowQuality.selectedSegmentIndex > 1) _shadowQuality.selectedSegmentIndex = 1;
     _drawDistance.selectedSegmentIndex = 0;
     if (_modelDetail.selectedSegmentIndex > 1) _modelDetail.selectedSegmentIndex = 1;
@@ -2067,7 +2068,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (_publicationCaptureQueue) {
         const uint64_t cursor = theft4_publication_capture_start();
         const uint64_t stageCursor = _frameStageTiming.on ? theft4_frame_stages_start() : 0;
-        [self startPacingDisplayLinkIfNeeded];
+        [self startDisplayTelemetryLinkIfNeeded];
         _publicationCaptureActive = YES;
         _publicationCaptureLastDrainTime = CACurrentMediaTime();
         dispatch_async(_publicationCaptureQueue, ^{
@@ -2097,8 +2098,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
          "# no GPU duration or actual displayed time; display targets are predictions; fence end is CPU observation\n"
          "# stages: 1 guest-submit-begin; 2 guest-submit-end(a=success); 3 limiter-end(a=pre-submit); 4 worker-begin; 5 worker-end; 6 queue-begin; 7 queue-end(a=submission b=slot); 8 fence-begin; 9 fence-end(frame=0 a=submission b=slot); 10 present-queued(a=content b=result); 11 constants(a=reuses b=changed-version-reuses); 12 constants-fallback(a=count b=arena-bytes); 13 display-target(frame=0 a=predicted-host-ns)\n"
          "kind,frame,monotonic_ns,lost_count,note\nstatus,,,,collecting\n"
-         "config,,,,constant_reuse=%d display_pacing=%d stage_timing=%d\n",
-         _constantReuse.on, _displayPacing.on, _frameStageTiming.on];
+         "config,,,,constant_reuse=%d stage_timing=%d\n",
+         _constantReuse.on, _frameStageTiming.on];
     if (![header writeToURL:_publicationCaptureURL atomically:YES
                    encoding:NSUTF8StringEncoding error:&error]) {
         _publicationCaptureURL = nil;
@@ -2109,21 +2110,21 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     _publicationCaptureQueue = dispatch_queue_create("theft4.publication-capture", DISPATCH_QUEUE_SERIAL);
     _publicationCaptureCursor = theft4_publication_capture_start();
     _frameStageCaptureCursor = _frameStageTiming.on ? theft4_frame_stages_start() : 0;
-    [self startPacingDisplayLinkIfNeeded];
+    [self startDisplayTelemetryLinkIfNeeded];
     _publicationCaptureActive = YES;
     _publicationCaptureLastDrainTime = CACurrentMediaTime();
     [self record:@"capture.lightweight_started"];
     return YES;
 }
 
-- (void)startPacingDisplayLinkIfNeeded {
-    if (_pacingDisplayLink || (!_displayPacing.on && !_frameStageTiming.on)) return;
-    _pacingDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(pacingDisplayTick:)];
+- (void)startDisplayTelemetryLinkIfNeeded {
+    if (_pacingDisplayLink || !_frameStageTiming.on) return;
+    _pacingDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayTelemetryTick:)];
     _pacingDisplayLink.preferredFramesPerSecond = 30;
     [_pacingDisplayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 
-- (void)pacingDisplayTick:(CADisplayLink *)link {
+- (void)displayTelemetryTick:(CADisplayLink *)link {
     theft4_pacing_note_display_target(link.targetTimestamp);
 }
 
@@ -2172,11 +2173,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             theft4_publication_capture_stop();
             [self drainPublicationCapture];
             self->_publicationCaptureActive = NO;
-            if (!self->_displayPacing.on) {
-                [self->_pacingDisplayLink invalidate];
-                self->_pacingDisplayLink = nil;
-                theft4_pacing_note_display_target(0);
-            }
+            [self->_pacingDisplayLink invalidate];
+            self->_pacingDisplayLink = nil;
+            theft4_pacing_note_display_target(0);
             dispatch_async(self->_publicationCaptureQueue, ^{
                 [self appendPublicationCaptureText:@"status,,,,saved\n"];
             });
@@ -2250,8 +2249,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // any renderer environment variables from the controls.
         [self applyLimitedMemoryCaps];
         setenv("THEFT4_CONSTANT_REUSE", _constantReuse.on ? "1" : "0", 1);
-        setenv("THEFT4_DISPLAY_PACING", _displayPacing.on ? "1" : "0", 1);
-        if (_displayPacing.on) [self startPacingDisplayLinkIfNeeded];
+        // The display-aligned limiter experiment was rejected; do not let an
+        // inherited flag reactivate it in this app process.
+        unsetenv("THEFT4_DISPLAY_PACING");
         if (_performanceCapture.on) [self beginPublicationCapture];
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.

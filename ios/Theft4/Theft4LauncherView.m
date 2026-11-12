@@ -337,8 +337,6 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     _constantReuse.accessibilityIdentifier = @"experiments.constantReuse";
     _frameStageTiming = [UISwitch new];
     _frameStageTiming.accessibilityIdentifier = @"experiments.frameStageTiming";
-    _displayPacing = [UISwitch new];
-    _displayPacing.accessibilityIdentifier = @"experiments.displayPacing";
     _downloadLogButton = Action(@"DOWNLOAD LATEST LOG CAPTURE", NO);
     _downloadLogButton.accessibilityIdentifier = @"diagnostics.downloadLatestCapture";
     _exportSavesButton = Action(@"EXPORT SAVES TO FILES", NO);
@@ -357,7 +355,6 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
         Copy(@"Changes apply on the next game launch. Turn both optimization switches off to restore the previous renderer and limiter paths. No save files or graphics-quality settings are changed.", 12, NO),
         [self setting:@"SHADER CONSTANT REUSE" detail:@"Reuse immutable shader data only when the compiled shader cannot read the changed values. Unknown accesses use the original path. Default: on for this test round." toggle:_constantReuse],
         [self setting:@"FRAME-STAGE TIMING" detail:@"Include guest, worker, queue, fence-observation and display-target timestamps in long captures. No per-draw timestamps or GPU queries. Default: on; turn off to compare capture overhead." toggle:_frameStageTiming],
-        [self setting:@"DISPLAY-ALIGNED SUBMISSION" detail:@"Experimental 30 FPS submission pacing using display-link predictions. May change input latency or pacing. Default: off, so constant reuse can be tested alone first." toggle:_displayPacing],
         Copy(@"SAVE TRANSFER", 13, YES),
         Copy(@"Export a dated backup to Files → On My iPhone/iPad → Theft4 → Save Exports. Import a Theft4 save-export folder only while the game is closed; current saves are backed up first.", 12, NO),
         _exportSavesButton, _importSavesButton,

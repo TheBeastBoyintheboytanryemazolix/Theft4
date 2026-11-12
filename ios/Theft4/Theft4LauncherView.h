@@ -28,7 +28,6 @@
 @property(nonatomic, readonly) UISwitch *performanceCapture;
 @property(nonatomic, readonly) UISwitch *constantReuse;
 @property(nonatomic, readonly) UISwitch *frameStageTiming;
-@property(nonatomic, readonly) UISwitch *displayPacing;
 @property(nonatomic, readonly) UIButton *downloadLogButton;
 @property(nonatomic, readonly) UIButton *exportSavesButton;
 @property(nonatomic, readonly) UIButton *importSavesButton;
