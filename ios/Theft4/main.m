@@ -1516,6 +1516,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             _bringupOverlay.fsrUpscaling.on = YES;
             _shadowQuality.selectedSegmentIndex = 0; // 128 base map and 0.75x shadow range.
             _drawDistance.selectedSegmentIndex = 0;
+            _modelDetail.selectedSegmentIndex = 0; // Prefer simpler resident meshes sooner.
             _motionBlur.on = NO;
             _depthOfField.on = NO;
             break;
