@@ -452,6 +452,18 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
                 throw std::runtime_error("THEFT4_SUBMIT_PRIMARY_END must be 0 or 1");
             REXCVAR_SET(vulkan_submit_on_primary_buffer_end, value == "1");
         }
+#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+        else if (device_profile == "legacy-ipad") {
+            // A16-class iPads benefit from batching guest primary buffers:
+            // avoid extra Vulkan/Metal submissions and fence cycles inside
+            // one guest frame. Keep THEFT4_SUBMIT_PRIMARY_END=1 as the exact
+            // rollback/control path for device A/B and synchronization checks.
+            REXCVAR_SET(vulkan_submit_on_primary_buffer_end, false);
+            REXLOG_INFO(
+                "Theft4 legacy iPad PM4 submission batching enabled "
+                "(THEFT4_SUBMIT_PRIMARY_END=1 restores upstream behavior)");
+        }
+#endif
         if (const char* draw_bounds = std::getenv("THEFT4_DRAW_BOUNDS"); draw_bounds) {
             const std::string_view value(draw_bounds);
             if (value != "0" && value != "1")
