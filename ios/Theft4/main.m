@@ -1548,15 +1548,24 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 - (void)applyLimitedMemoryCaps {
     if (!_limitedMemoryProfile || !_bringupOverlay.renderResolution || _executionAttempted) return;
 
-    // Devices with 6 GiB or less stay inside a 900p scene / 1080p presentation
-    // ceiling, with settings that add render targets, samples, or draws removed.
-    if (_bringupOverlay.renderResolution.selectedSegmentIndex > 2)
-        _bringupOverlay.renderResolution.selectedSegmentIndex = 2;
-    // Keep the memory-safe scene/output limits, but preserve the user's FSR1
-    // choice. The native/bilinear path is supported under the same 1080p cap.
-    if (_shadowQuality.selectedSegmentIndex > 1) _shadowQuality.selectedSegmentIndex = 1;
+    // The A16/legacy iPad target needs the smallest supported scene budget
+    // to reduce fragment, bandwidth and render-target pressure. FSR remains
+    // user-controlled; disabling it still produces a native 540p scene.
+    if (_legacyIPadProfile) {
+        _bringupOverlay.renderResolution.selectedSegmentIndex = 0; // 540p
+        _shadowQuality.selectedSegmentIndex = 0; // 128 map / 0.75x range
+        _modelDetail.selectedSegmentIndex = 0; // simplest LODs at shorter range
+    } else {
+        // Other 6 GiB devices retain the existing 900p scene / 1080p ceiling.
+        if (_bringupOverlay.renderResolution.selectedSegmentIndex > 2)
+            _bringupOverlay.renderResolution.selectedSegmentIndex = 2;
+        if (_shadowQuality.selectedSegmentIndex > 1)
+            _shadowQuality.selectedSegmentIndex = 1;
+        if (_modelDetail.selectedSegmentIndex > 1)
+            _modelDetail.selectedSegmentIndex = 1;
+    }
+    // Keep the lowest draw distance and the remaining low-cost options active.
     _drawDistance.selectedSegmentIndex = 0;
-    if (_modelDetail.selectedSegmentIndex > 1) _modelDetail.selectedSegmentIndex = 1;
     _reflectionQuality.selectedSegmentIndex = 0;
     _antiAliasing.selectedSegmentIndex = 0;
     _anisotropicFiltering.on = NO;
