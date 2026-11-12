@@ -275,8 +275,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     }
 
     _shadowQuality = ChoiceControl(@[@"Optimized", @"Original", @"Enhanced", @"Ultra"], @"shadowQuality",
-        @"Dynamic shadows", @"Optimized is pending validation of distant shadow cache reuse.");
-    [_shadowQuality setEnabled:NO forSegmentAtIndex:0];
+        @"Dynamic shadows", @"Optimized uses a 128 base map and shorter shadow range to reduce GPU and cache work.");
     _drawDistance = ChoiceControl(@[@"Optimized", @"Original", @"2×", @"3×"], @"drawDistance",
         @"Draw distance", @"Optimized reduces world distance and distant local illumination.");
     _modelDetail = ChoiceControl(@[@"Lower", @"Original", @"Highest"], @"modelDetail",
@@ -302,7 +301,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     }
 
     [graphicsRows addObjectsFromArray:@[
-        [self choice:@"DYNAMIC SHADOWS" detail:@"Optimized is locked until distant shadow cache reuse is verified. Original: 256 / 2048². Enhanced: 512 / 4096². Ultra: 1024 / up to 8192²." control:_shadowQuality metrics:_shadowMetrics],
+        [self choice:@"DYNAMIC SHADOWS" detail:@"Optimized: 128 / 1024² cache / 0.75× range. Original: 256 / 2048². Enhanced: 512 / 4096². Ultra: 1024 / up to 8192²." control:_shadowQuality metrics:_shadowMetrics],
         [self choice:@"DRAW DISTANCE" detail:@"Optimized: 0.70× world distance and culls far local light volumes. Distant scenery and some night lighting may change." control:_drawDistance metrics:_distanceMetrics],
         [self choice:@"MODEL DETAIL" detail:@"Lower selects simpler resident meshes sooner; Highest prefers the best resident mesh. Neither forces missing models to load. Lower may reduce geometry cost, but CPU gains depend on submesh and draw-call counts." control:_modelDetail metrics:_modelMetrics],
         [self choice:@"REFLECTION QUALITY" detail:@"Mirror and water targets / environment cubemap. Full is capped at 1440p in this build." control:_reflectionQuality metrics:_reflectionMetrics],
