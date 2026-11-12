@@ -4,6 +4,8 @@
 
 #include <dispatch/dispatch.h>
 #include <pthread.h>
+#include <cstdlib>
+#include <cstring>
 
 #include <memory>
 #include <string>
@@ -50,11 +52,11 @@ REXCVAR_DEFINE_DOUBLE(gta4_native_auto_hdr_shoulder_power, 2.5,
     .range(1.0, 10.0);
 REXCVAR_DEFINE_UINT32(gta4_shadow_map_base_size, 256, "GTA IV/Graphics/Shadows",
                       "Base shadow-map size")
-    .range(256, 1024)
+    .range(128, 1024)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(gta4_shadow_distance_scale, 1.0, "GTA IV/Graphics/Shadows",
                       "Directional shadow range multiplier")
-    .range(1.0, 4.0)
+    .range(0.75, 4.0)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(gta4_reflection_resolution, "original", "GTA IV/Graphics/Reflections",
                       "Reflection resolution")
@@ -120,6 +122,50 @@ REXCVAR_DEFINE_UINT32(gta4_drawable_reference_limit, 13000, "GTA IV/Graphics/LOD
     .range(13000, 40000)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+// Apply the iOS launcher's persisted choices to the actual renderer CVars.
+// main.m exports these values immediately before the one-shot game runtime is
+// created; merely setting environment variables is not enough because the
+// native renderer reads the CVar registry, not those launcher variables.
+static void ApplyTheft4LaunchGraphicsCVars() {
+  const char* shadow = std::getenv("THEFT4_SHADOW_QUALITY");
+  if (shadow) {
+    uint32_t base_size = 256;
+    double distance_scale = 1.0;
+    if (std::strcmp(shadow, "optimized") == 0) {
+      base_size = 128;
+      distance_scale = 0.75;
+    } else if (std::strcmp(shadow, "enhanced") == 0) {
+      base_size = 512;
+    } else if (std::strcmp(shadow, "ultra") == 0) {
+      base_size = 1024;
+      distance_scale = 1.5;
+    }
+    rex::cvar::SetFlagByName("gta4_shadow_map_base_size", std::to_string(base_size));
+    rex::cvar::SetFlagByName("gta4_shadow_distance_scale", std::to_string(distance_scale));
+  }
+
+  if (const char* distance = std::getenv("THEFT4_DRAW_DISTANCE")) {
+    uint32_t drawable_limit = 13000;
+    if (std::strcmp(distance, "2") == 0) drawable_limit = 17000;
+    else if (std::strcmp(distance, "3") == 0) drawable_limit = 20000;
+    rex::cvar::SetFlagByName("gta4_draw_distance_scale", distance);
+    rex::cvar::SetFlagByName("gta4_drawable_reference_limit",
+                             std::to_string(drawable_limit));
+  }
+
+  if (const char* highest_lod = std::getenv("THEFT4_FORCE_HIGHEST_LOD"))
+    rex::cvar::SetFlagByName("gta4_force_highest_lod", highest_lod);
+  if (const char* lod_bias = std::getenv("THEFT4_LOD_SELECTION_BIAS"))
+    rex::cvar::SetFlagByName("gta4_lod_selection_distance_scale", lod_bias);
+  if (const char* reflections = std::getenv("THEFT4_REFLECTION_RESOLUTION"))
+    rex::cvar::SetFlagByName("gta4_reflection_resolution", reflections);
+  if (const char* anti_aliasing = std::getenv("THEFT4_ANTI_ALIASING"))
+    rex::cvar::SetFlagByName("gta4_native_anti_aliasing", anti_aliasing);
+  if (const char* fsr = std::getenv("THEFT4_FSR_UPSCALING"))
+    rex::cvar::SetFlagByName("gta4_native_upscaler",
+                             std::strcmp(fsr, "1") == 0 ? "fsr1" : "native");
+}
+
 // GTA4App owns the mutable anti-aliasing controller on desktop. The iOS shell
 // currently exposes a launch-time setting only, so resolving the configured
 // mode directly is equivalent and keeps the renderer frontend-independent.
@@ -170,6 +216,8 @@ theft4_create_gta4_native_graphics() {
     REXLOG_ERROR("Theft4 gta4-native renderer has no bound CAMetalLayer");
     return nullptr;
   }
+
+  ApplyTheft4LaunchGraphicsCVars();
 
   // High-resolution replacement atlases aren't packaged in the iOS app yet.
   // Use the title's stock fonts rather than performing failed filesystem
