@@ -82,6 +82,15 @@ Status labels used below:
 Private game files, title updates, saves, screenshots, GPU captures, signing
 material, and device logs are never part of this changelog or repository.
 
+## Unreleased — paced-30 worker staging candidate
+
+### Implemented, build/device acceptance pending — fixed-capacity production batch
+
+- Replaced the production renderer's temporary worker-side deque of NativeCommand objects with the already-tested fixed-capacity NativeWorkerBatch<NativeCommand, 64>.
+- Preserves the existing 64-command transfer limit, FIFO order, texture-generation protection handoff, command processing order, and frame-slot/resource lifetime.
+- Removes deque block allocation/deallocation from worker-batch refill/pop cycles; it does not alter GPU work, frame pacing, image quality, or the BC texture fallback.
+- This is a CPU-allocation/efficiency candidate, not a measured FPS improvement. Release build, unit tests, and matched A16 device captures are still required.
+
 ## Unreleased — work after `440d505c` — 2026-09-16
 
 Comparison base: [`440d505c`](https://github.com/KoreanSeats1/Theft4/commit/440d505c964bbe4cb51a0217e162bf1eaa4de23e),
