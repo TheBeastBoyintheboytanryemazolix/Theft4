@@ -8,7 +8,9 @@
 #include <unordered_map>
 #include <mutex>
 #include <mach/mach.h>
+extern "C" {
 #include "libavcodec/texturedsp.h"
+}
 #include "theft4_bounded_cache_sweep.h"
 
 namespace theft4::metal {
