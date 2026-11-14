@@ -37,7 +37,7 @@ def run(args, cwd, *, check=True, capture=True):
 
 
 def git(root, *args, **kwargs):
-    return run(['git', '-c', 'core.fsmonitor=false', *args], root, **kwargs)
+    return run(['git', '-c', 'core.fsmonitor=false', '-c', f'safe.directory={root}', *args], root, **kwargs)
 
 
 def digest(data):
@@ -225,7 +225,7 @@ class Patches:
                 raise SetupError(f'Duplicate patched dependency: {entry["path"]}')
             paths.add(entry['path'])
             patch = source_path(self.directory, entry['patch'])
-            if hashlib.sha256(patch.read_bytes()).hexdigest() != entry['sha256']:
+            if digest(patch.read_bytes()) != entry['sha256']:
                 raise SetupError(f'Dependency patch checksum mismatch: {patch}')
             names = set()
             for item in entry['files']:
