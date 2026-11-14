@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S tools/direct-metal -B out/direct-metal/build -DCMAKE_BUILD_TYPE=Release
-          cmake --build out/direct-metal/build --parallel 6
+          cmake --build out/direct-metal/build --target metal_shader_export metal_host_shader_export --parallel 6
 
       - name: Export complete game and host shader corpora
         run: |
