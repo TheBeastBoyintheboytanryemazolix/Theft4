@@ -2743,14 +2743,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     char metalRows[8192];
     const size_t metalBytes=theft4_metal_diagnostics_drain(metalRows,sizeof(metalRows)-1);
     if(metalBytes) {
-        metalRows[metalBytes]='\\0';
+        metalRows[metalBytes]='\0';
         NSString *rows=[[NSString alloc] initWithBytes:metalRows length:metalBytes encoding:NSUTF8StringEncoding];
         if(rows.length) {
             NSMutableString *csv=[NSMutableString new];
-            for(NSString *line in [rows componentsSeparatedByString:@"\\n"]) {
+            for(NSString *line in [rows componentsSeparatedByString:@"\n"]) {
                 if(!line.length)continue;
-                NSString *escaped=[line stringByReplacingOccurrencesOfString:@"\\\" withString:@"\\\"\\\""];
-                [csv appendFormat:@"metal_rejection,,%llu,,\\\"%@\\\"\\n",
+                NSString *escaped=[line stringByReplacingOccurrencesOfString:@"\"" withString:@"\"\""];
+                [csv appendFormat:@"metal_rejection,,%llu,,\"%@\"\n",
                     (unsigned long long)(CACurrentMediaTime()*1e9),escaped];
             }
             if(csv.length)[self appendPublicationCaptureText:csv];
