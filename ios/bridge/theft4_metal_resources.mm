@@ -307,8 +307,8 @@ bool DecodeBCTexture(MTLPixelFormat format, TextureDSPContext& dsp,
       for(size_t by=0;by<blocks_y;++by) {
         for(size_t bx=0;bx<blocks_x;++bx) {
           const uint8_t* block=input+z*source_image_stride+by*u.bytes_per_row+bx*block_bytes;
-          if(decode_block(decoded_block,4*4,block)!=0) {
-            error="FFmpeg failed to decode a BC texture block";return false;
+          if(decode_block(decoded_block,4*4,block)!=static_cast<int>(block_bytes)) {
+            error="FFmpeg failed to consume a complete BC texture block";return false;
           }
           for(size_t py=0;py<4;++py) {
             const size_t y=by*4+py;if(y>=u.height)break;
