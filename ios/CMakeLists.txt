@@ -19,8 +19,8 @@ if(THEFT4_NATIVE_METAL_CAPTURE AND NOT THEFT4_LAB_BUILD)
     message(FATAL_ERROR "Private Metal draw capture requires a lab build")
 endif()
 if(THEFT4_LAB_BUILD)
-    elseif(NOT THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4" OR
-           NOT THEFT4_DISPLAY_NAME STREQUAL "Theft4")
+    if(NOT THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4" OR
+       NOT THEFT4_DISPLAY_NAME STREQUAL "Theft4")
         message(FATAL_ERROR "The M5 baseline requires the official Theft4 app identity")
     endif()
     set(THEFT4_LAB_PLIST_VALUE "<true/>")
