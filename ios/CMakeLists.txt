@@ -216,10 +216,13 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             "${CMAKE_SOURCE_DIR}/thirdparty/json/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
-            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include")
+            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
+            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/FFmpeg")
         target_link_libraries(theft4_gta4_native_compile PRIVATE
             rex::runtime
-            xxHash::xxhash)
+            xxHash::xxhash
+            libavcodec
+            libavutil)
         target_compile_definitions(theft4_gta4_native_compile PRIVATE
             REX_HAS_VULKAN=1
             REXGLUE_BUILD_CONFIG="$<CONFIG>"
