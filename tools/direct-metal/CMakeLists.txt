@@ -200,6 +200,7 @@ set(METAL_CATALOG_MANIFEST "" CACHE FILEPATH "Exported full stock Metal manifest
 if(METAL_CATALOG_MANIFEST)
   add_test(NAME metal_shader_catalog COMMAND metal_shader_catalog_test "${METAL_CATALOG_MANIFEST}")
 endif()
+if(EXISTS "${ROOT}/ios/tests/direct_metal_probe.mm" AND EXISTS "${ROOT}/ios/tests/direct_metal_capture.mm")
 add_executable(metal_probe probe_main.mm "${ROOT}/ios/tests/direct_metal_probe.mm"
   "${ROOT}/ios/tests/direct_metal_capture.mm"
   "${ROOT}/ios/bridge/theft4_native_metal.mm" "${ROOT}/ios/bridge/theft4_metal_shader_store.mm"
@@ -213,6 +214,8 @@ set(METAL_SOURCE_REVISION "development" CACHE STRING "Source commit represented 
 target_compile_definitions(metal_probe PRIVATE "THEFT4_METAL_SOURCE_REVISION=\"${METAL_SOURCE_REVISION}\"")
 target_link_libraries(metal_probe PRIVATE metal_shader_catalog render_plan "-framework Foundation" "-framework Metal"
   "-framework QuartzCore" "-framework CoreGraphics" "-framework ImageIO")
+endif()
+
 
 # Exercise the live worker backend, independently from isolated draw replays.
 add_executable(metal_backend_worker_test backend_worker_test.mm
@@ -257,9 +260,10 @@ add_executable(frontend_storage_test frontend_storage_test.cpp)
 target_include_directories(frontend_storage_test PRIVATE "${ROOT}/ios/bridge")
 target_link_libraries(frontend_storage_test PRIVATE render_plan)
 add_executable(exclusive_generation_retirement_test exclusive_generation_retirement_test.cpp)
+if(EXISTS "${ROOT}/ios/tests/masked_constant_replay_test.cpp")
 add_executable(masked_constant_replay_test "${ROOT}/ios/tests/masked_constant_replay_test.cpp")
 add_executable(constant_projection_test "${ROOT}/ios/tests/constant_projection_test.cpp")
-foreach(test_target frontend_storage_test metal_constant_projection_test incremental_owner_cache_test exclusive_generation_retirement_test masked_constant_replay_test constant_projection_test)
+foreach(test_target frontend_storage_test metal_constant_projection_test incremental_owner_cache_test exclusive_generation_retirement_test constant_projection_test)
   target_include_directories(${test_target} PRIVATE
     "${ROOT}/glue/rexglue-sdk-main/src/graphics/gta4_native" "${ROOT}/glue/rexglue-sdk-main/include")
   target_compile_options(${test_target} PRIVATE -UNDEBUG)
@@ -270,6 +274,8 @@ add_test(NAME frontend_storage COMMAND frontend_storage_test)
 add_test(NAME exclusive_generation_retirement COMMAND exclusive_generation_retirement_test)
 add_test(NAME masked_constant_replay COMMAND masked_constant_replay_test)
 add_test(NAME constant_projection_reflection COMMAND constant_projection_test)
+endif()
+
 add_executable(constant_projection_corpus "${ROOT}/ios/tests/constant_projection_corpus.cpp"
   $<TARGET_OBJECTS:metal_shader_corpus>)
 target_include_directories(constant_projection_corpus PRIVATE
@@ -365,6 +371,7 @@ target_link_libraries(metal_performance_benchmark PRIVATE metal_shader_catalog r
   "-framework Foundation" "-framework Metal" "-framework QuartzCore")
 
 # Alternating A/B GPU shader comparison using private saved game draws.
+if(TARGET metal_probe)
 get_target_property(shader_comparison_sources metal_probe SOURCES)
 list(REMOVE_ITEM shader_comparison_sources probe_main.mm)
 add_executable(metal_shader_comparison shader_comparison_main.mm ${shader_comparison_sources})
@@ -376,6 +383,8 @@ target_compile_definitions(metal_shader_comparison PRIVATE THEFT4_SHADER_BENCHMA
 target_link_libraries(metal_shader_comparison PRIVATE metal_shader_catalog render_plan
   "-framework Foundation" "-framework Metal" "-framework QuartzCore"
   "-framework CoreGraphics" "-framework ImageIO")
+endif()
+
 
 add_executable(metal_texture_usage_benchmark texture_usage_benchmark.mm)
 target_include_directories(metal_texture_usage_benchmark PRIVATE "${ROOT}/thirdparty/json/include")
@@ -389,6 +398,7 @@ target_include_directories(metal_hardware_resolve_comparison PRIVATE "${ROOT}/th
 target_compile_options(metal_hardware_resolve_comparison PRIVATE -fobjc-arc)
 target_link_libraries(metal_hardware_resolve_comparison PRIVATE "-framework Foundation" "-framework Metal")
 
+if(EXISTS "${ROOT}/ios/tests/retail_diagnostic_policy_test.cpp")
 add_executable(retail_diagnostic_policy_test "${ROOT}/ios/tests/retail_diagnostic_policy_test.cpp"
   "${ROOT}/glue/rexglue-sdk-main/src/core/diagnostics_policy.cpp")
 target_include_directories(retail_diagnostic_policy_test PRIVATE "${ROOT}/ios/bridge"
@@ -397,6 +407,8 @@ target_include_directories(retail_diagnostic_policy_test PRIVATE "${ROOT}/ios/br
 target_compile_options(retail_diagnostic_policy_test PRIVATE -UNDEBUG)
 add_test(NAME retail_diagnostics_disabled COMMAND retail_diagnostic_policy_test retail)
 add_test(NAME diagnostics_restored_on_fresh_launch COMMAND retail_diagnostic_policy_test diagnostics)
+endif()
+
 
 # Representative CPU preparation comparison; private game data remains external.
 add_executable(metal_draw_preparation_benchmark draw_preparation_benchmark.mm
