@@ -231,6 +231,16 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
     if(present.device&&!diagnostic_scan)native_metal_frame_->continuity.EndGuestFrame();
   });
   const uint32_t frame_identity=native_metal_frame_->continuity.frame_identity;
+  // Retail normally suppresses development diagnostics. Keep one bounded
+  // first-occurrence record for each distinct Metal frame rejection so a
+  // failed publication can be diagnosed from an ordinary device log.
+  const auto log_retail_rejection=[&](size_t index,uint32_t type,const char* stage) {
+    if(!theft4_retail_mode()||error.empty())return;
+    static std::set<std::string> logged_rejections;
+    if(logged_rejections.size()>=16||!logged_rejections.insert(error).second)return;
+    REXLOG_ERROR("gta4-metal: frame {} rejected stage={} cmd={} type={} reason={}",
+        frame_identity,stage,index,type,error);
+  };
   native_metal_frame_->draw_timing={};
   native_metal_frame_->sample_draw_timing=!theft4_retail_mode()&&present.device&&native_metal_frame_->timed_presents%60==0;
   if(!native_metal_frame_->resource_admission)
@@ -318,7 +328,13 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
   // Releases in this batch retire reflection aliases in command order. Failed
   // admission commits neither that registry nor placement/content ownership.
   next.reflections=reflection_resources_;auto& reflections=next.reflections;
-  const auto reject=[&](const char* reason){error=reason;return false;};
+  const auto reject=[&](const char* reason){
+    error=reason;
+    const uint32_t type=diagnostic_command_index_<current_frame_.size()
+        ?uint32_t(current_frame_[diagnostic_command_index_].type):0xFFFFFFFFu;
+    log_retail_rejection(diagnostic_command_index_,type,"validation");
+    return false;
+  };
   std::set<r::SurfaceKey> retained;
   const auto retain=[&](const std::shared_ptr<const r::Surface>& surface) {
     if(retained.insert(surface->key).second)
@@ -1091,7 +1107,10 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
     return true;
     };
     if(!lower_command()) {
-      if(!diagnostic_scan)return false;
+      if(!diagnostic_scan) {
+        log_retail_rejection(command_index,uint32_t(command.type),"lowering");
+        return false;
+      }
       if(scan_errors.size()<32&&scan_errors.insert(error).second)
         REXLOG_WARN("gta4-metal-command-scan: provisional cmd={} type={} reason={}",
             diagnostic_command_index_,uint32_t(command.type),error);
@@ -1104,14 +1123,24 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
   }
   if(present.device) {
     if(!source)return reject("Metal presentation source resource missing");
-    r::PresentationTarget target;if(!frame_backend_->Target(target,error))return false;
+    r::PresentationTarget target;
+    if(!frame_backend_->Target(target,error)) {
+      log_retail_rejection(command_index,0xFFFFFFFFu,"target");
+      return false;
+    }
     // The existing utility shader emits encoded SDR or extended-linear HDR.
     // Enabling an sRGB drawable here would encode its SDR output a second time.
     // The HDR layer/EDR contract must be connected before using float drawables.
     if(target.format!=r::Format::BGRA8Unorm)return reject("Metal presentation requires the SDR drawable color contract");
-    if(source->gpu_produced&&!produced_fetch(source))return false;
+    if(source->gpu_produced&&!produced_fetch(source)) {
+      log_retail_rejection(command_index,0xFFFFFFFFu,"present-resource");
+      return false;
+    }
     r::HostFetch input;
-    if(!PrepareNativeMetalFetch(NativeResourceView<NativeTextureResource>(source),source->fetch,next,input,error))return false;
+    if(!PrepareNativeMetalFetch(NativeResourceView<NativeTextureResource>(source),source->fetch,next,input,error)) {
+      log_retail_rejection(command_index,0xFFFFFFFFu,"present-fetch");
+      return false;
+    }
     uint32_t width=0,height=0,logical_width=0,logical_height=0;
     if(input.produced) {
       const auto& texture=next.textures.Read(source->generation);const auto& storage=*texture.owner;
@@ -1135,7 +1164,10 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
     if(quality>=0&&!next.smaa_lookups.area)next.smaa_lookups=r::MakeSmaaLookups(next_native_metal_allocation_);
     auto output=utility_for("present-output",target.width,target.height,target.format);
     if(!output||!r::AppendPresentation(*plan,next.contents,input,output,constants,quality,next.smaa_lookups,
-                                     utility_for,next_native_metal_allocation_,error))return false;
+                                     utility_for,next_native_metal_allocation_,error)) {
+      log_retail_rejection(command_index,0xFFFFFFFFu,"present-pass");
+      return false;
+    }
   }
   lower_done=tick();validate_done=submit_done=lower_done;
   if(!plan->commands.empty()) {
@@ -1144,7 +1176,10 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
     // The Metal backend owns complete frame admission and returns its accepted
     // content journal. Per-draw source admission above still rejects malformed
     // title draws before they enter this plan; no frame-wide check is skipped.
-    if(!frame_backend_->Submit(plan,present.device!=0,error,&final))return false;
+    if(!frame_backend_->Submit(plan,present.device!=0,error,&final)) {
+      log_retail_rejection(command_index,0xFFFFFFFFu,"backend-submit");
+      return false;
+    }
     submit_done=tick();
     std::erase_if(next.contents,[&](const auto& view){return retained.contains(view.surface);});
     next.contents.insert(final.begin(),final.end());
