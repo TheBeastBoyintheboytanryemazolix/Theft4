@@ -29,6 +29,9 @@ REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
 
 namespace rex::audio::sdl {
 
+// C++14 requires an out-of-class definition when this constant is ODR-used.
+const uint32_t SDLAudioDriver::silent_frame_duration_microseconds_;
+
 namespace {
 
 struct SDLSubsystemResult {
