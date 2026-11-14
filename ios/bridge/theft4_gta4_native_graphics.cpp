@@ -4,6 +4,8 @@
 
 #include <dispatch/dispatch.h>
 #include <pthread.h>
+#include <cstdlib>
+#include <cstring>
 
 #include <memory>
 #include <mutex>
@@ -124,6 +126,46 @@ REXCVAR_DEFINE_UINT32(gta4_drawable_reference_limit, 13000, "GTA IV/Graphics/LOD
     .range(13000, 40000)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+static void ApplyTheft4LaunchGraphicsCVars() {
+  const char* shadow = std::getenv("THEFT4_SHADOW_QUALITY");
+  if (shadow) {
+    uint32_t base_size = 256;
+    double distance_scale = 1.0;
+    if (std::strcmp(shadow, "optimized") == 0) {
+      base_size = 128;
+      distance_scale = 0.75;
+    } else if (std::strcmp(shadow, "enhanced") == 0) {
+      base_size = 512;
+    } else if (std::strcmp(shadow, "ultra") == 0) {
+      base_size = 1024;
+      distance_scale = 1.5;
+    }
+    rex::cvar::SetFlagByName("gta4_shadow_map_base_size", std::to_string(base_size));
+    rex::cvar::SetFlagByName("gta4_shadow_distance_scale", std::to_string(distance_scale));
+  }
+
+  if (const char* distance = std::getenv("THEFT4_DRAW_DISTANCE")) {
+    uint32_t drawable_limit = 13000;
+    if (std::strcmp(distance, "2") == 0) drawable_limit = 17000;
+    else if (std::strcmp(distance, "3") == 0) drawable_limit = 20000;
+    rex::cvar::SetFlagByName("gta4_draw_distance_scale", distance);
+    rex::cvar::SetFlagByName("gta4_drawable_reference_limit",
+                             std::to_string(drawable_limit));
+  }
+
+  if (const char* highest_lod = std::getenv("THEFT4_FORCE_HIGHEST_LOD"))
+    rex::cvar::SetFlagByName("gta4_force_highest_lod", highest_lod);
+  if (const char* lod_bias = std::getenv("THEFT4_LOD_SELECTION_BIAS"))
+    rex::cvar::SetFlagByName("gta4_lod_selection_distance_scale", lod_bias);
+  if (const char* reflections = std::getenv("THEFT4_REFLECTION_RESOLUTION"))
+    rex::cvar::SetFlagByName("gta4_reflection_resolution", reflections);
+  if (const char* anti_aliasing = std::getenv("THEFT4_ANTI_ALIASING"))
+    rex::cvar::SetFlagByName("gta4_native_anti_aliasing", anti_aliasing);
+  if (const char* fsr = std::getenv("THEFT4_FSR_UPSCALING"))
+    rex::cvar::SetFlagByName("gta4_native_upscaler",
+                             std::strcmp(fsr, "1") == 0 ? "fsr1" : "native");
+}
+
 // GTA4App owns the mutable anti-aliasing controller on desktop. The iOS shell
 // currently exposes a launch-time setting only, so resolving the configured
 // mode directly is equivalent and keeps the renderer frontend-independent.
@@ -184,6 +226,7 @@ extern "C" void theft4_native_unregister_renderer(void* renderer) {
 
 std::unique_ptr<rex::system::IGraphicsSystem>
 theft4_create_gta4_native_graphics() {
+  ApplyTheft4LaunchGraphicsCVars();
   void* layer = theft4_metal_bound_layer();
   if (!layer) {
     REXLOG_ERROR("Theft4 gta4-native renderer has no bound CAMetalLayer");
@@ -238,6 +281,7 @@ theft4_create_gta4_native_graphics() {
 #ifdef THEFT4_DIRECT_METAL_BACKEND
 std::unique_ptr<rex::system::IGraphicsSystem>
 theft4_create_gta4_metal_graphics() {
+  ApplyTheft4LaunchGraphicsCVars();
   void* layer=theft4_metal_bound_layer();
   if(!layer){REXLOG_ERROR("Theft4 direct Metal renderer has no bound CAMetalLayer");return nullptr;}
   rex::cvar::SetFlagByName("gta4_native_vector_fonts","false");

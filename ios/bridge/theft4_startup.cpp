@@ -594,6 +594,11 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             // The broader scissored mode is deliberately excluded from this
             // experiment because it can execute many UI vertices on the CPU.
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
+        } else if (device_profile == "legacy-ipad") {
+            // Preserve the A16-class iPad's safe, unscissored extent estimate.
+            // It remains independently reversible with THEFT4_DRAW_BOUNDS=0.
+            REXCVAR_SET(execute_unclipped_draw_vs_on_cpu, true);
+            REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
         }
         // Keep the mechanism and its diagnostic logging independently
         // controllable so a scored Release run doesn't pay for periodic log
