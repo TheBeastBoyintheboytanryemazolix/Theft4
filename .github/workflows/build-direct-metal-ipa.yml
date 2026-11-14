@@ -1,0 +1,107 @@
+name: Direct Metal iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - direct-metal-renderer-port
+
+permissions:
+  contents: read
+
+concurrency:
+  group: direct-metal-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Direct Metal device IPA
+    runs-on: macos-26
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout renderer port
+        uses: actions/checkout@v4
+        with:
+          ref: direct-metal-renderer-port
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cmake --version
+          uname -m
+
+      - name: Prepare pinned dependencies
+        run: python3 tools/setup_repo.py
+
+      - name: Build Direct Metal shader exporters
+        run: |
+          set -euo pipefail
+          cmake -S tools/direct-metal -B out/direct-metal/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/direct-metal/build --target metal_shader_export metal_host_shader_export --parallel 6
+
+      - name: Export complete game and host shader corpora
+        run: |
+          set -euo pipefail
+          out/direct-metal/build/metal_shader_export out/direct-metal/corpus
+          out/direct-metal/build/metal_host_shader_export out/direct-metal/host-corpus
+
+      - name: Compile offline iPhoneOS Metal libraries
+        run: |
+          set -euo pipefail
+          python3 tools/direct-metal/compile_shaders.py out/direct-metal/corpus out/direct-metal/ios --platform ios
+          python3 tools/direct-metal/compile_shaders.py out/direct-metal/host-corpus out/direct-metal/ios/Host --platform ios
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for path in (Path("out/direct-metal/ios/COMPILATION.json"),
+                       Path("out/direct-metal/ios/Host/COMPILATION.json")):
+              report = json.loads(path.read_text())
+              print(path, "compiled", report["compiled"], "of", report["sources"])
+              if report["rejected"] or report["compiled"] != report["sources"]:
+                  raise SystemExit(f"Metal shader compilation incomplete: {path}")
+          PY
+
+      - name: Build and package Direct Metal IPA
+        env:
+          THEFT4_METAL_LIBRARIES: ${{ github.workspace }}/out/direct-metal/ios
+          THEFT4_BUILD_JOBS: '3'
+        run: tools/build_ios_release.sh 0.3.1
+
+      - name: Upload unsigned IPA and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: Theft4-Direct-Metal-iOS-${{ github.sha }}
+          path: |
+            dist/*.ipa
+            dist/*.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-metal-build-diagnostics-${{ github.run_id }}
+          path: |
+            out/build/ios-device-release/CMakeFiles/CMakeOutput.log
+            out/build/ios-device-release/CMakeFiles/CMakeError.log
+            out/build/ios-device-release/CMakeCache.txt
+            out/direct-metal/ios/COMPILATION.json
+            out/direct-metal/ios/Host/COMPILATION.json
+          if-no-files-found: ignore
+          retention-days: 7

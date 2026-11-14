@@ -1,9 +1,17 @@
+#include "theft4_retail_mode.h"
 #include "theft4_boot.h"
 #include "theft4_bootstrap_audio.h"
 #include "theft4_bootstrap_graphics.h"
 #include "theft4_bootstrap_input.h"
 #include "theft4_metal_presenter.h"
 #include "theft4_motion_blur.h"
+#include "theft4_performance_defaults.h"
+#include "theft4_mod_mount.h"
+#include "theft4_timecycle_archive.h"
+#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+#include "gta4_aspect_hooks.h"
+#include "gta4_gameplay_mods.h"
+#endif
 #include "gta4_installer.h"
 #include <rex/image_info.h>
 #include <rex/cvar.h>
@@ -15,13 +23,20 @@
 #include <rex/system/user_module.h>
 #include <rex/system/xex_module.h>
 #include <rex/system/xthread.h>
+#include <rex/thread/runtime_wait_policy.h>
+#include <rex/chrono/clock.h>
 #include <atomic>
 #include <chrono>
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 
 REXCVAR_DECLARE(bool, vulkan_presenter_probe_swapchain_pixels);
+#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+REXCVAR_DECLARE(bool, gta4_trace_aspect);
+#endif
 REXCVAR_DECLARE(std::string, render_target_path_vulkan);
 REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);
 REXCVAR_DECLARE(bool, vulkan_submit_on_primary_buffer_end);
@@ -33,18 +48,21 @@ REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);
 REXCVAR_DECLARE(bool, vulkan_tight_render_area);
 REXCVAR_DECLARE(std::string, gta4_transition_diagnostics);
 #ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+REXCVAR_DECLARE(bool, vulkan_moltenvk_synchronous_queue_submits);
 REXCVAR_DECLARE(uint32_t, gta4_native_frames_in_flight);
+REXCVAR_DECLARE(uint32_t, gta4_native_cpu_present_admission);
 REXCVAR_DECLARE(bool, gta4_native_texture_content_cache);
 REXCVAR_DECLARE(bool, gta4_native_sparse_texture_walks);
 REXCVAR_DECLARE(bool, gta4_native_worker_stall_attribution);
+REXCVAR_DECLARE(bool, gta4_validate_native_hot_caches);
 REXCVAR_DECLARE(bool, gta4_native_async_pipeline_no_wait);
 REXCVAR_DECLARE(bool, gta4_native_pipeline_prewarm);
+REXCVAR_DECLARE(bool, gta4_native_pipeline_snapshot_reuse);
+REXCVAR_DECLARE(bool, gta4_native_component_scope_reuse);
+REXCVAR_DECLARE(bool, gta4_trace_startup_content);
 REXCVAR_DECLARE(bool, gta4_profile_native_detailed_gpu);
 REXCVAR_DECLARE(bool, gta4_profile_native_detailed_cpu);
 REXCVAR_DECLARE(bool, gta4_profile_native_autostart);
-REXCVAR_DECLARE(uint32_t, gta4_profile_native_gpu_query_budget);
-REXCVAR_DECLARE(uint32_t, gta4_profile_native_interval);
-REXCVAR_DECLARE(uint32_t, gta4_profile_native_samples);
 REXCVAR_DECLARE(std::string, gta4_anisotropic_filtering);
 REXCVAR_DECLARE(int32_t, video_mode_width);
 REXCVAR_DECLARE(int32_t, video_mode_height);
@@ -58,6 +76,8 @@ REXCVAR_DECLARE(double, gta4_shadow_distance_scale);
 REXCVAR_DECLARE(std::string, gta4_reflection_resolution);
 REXCVAR_DECLARE(std::string, gta4_aspect_ratio);
 REXCVAR_DECLARE(std::string, gta4_native_anti_aliasing);
+REXCVAR_DECLARE(bool, gta4_native_anti_aliasing_unified);
+REXCVAR_DECLARE(uint32_t, gta4_native_sharpening);
 REXCVAR_DECLARE(bool, gta4_force_highest_lod);
 REXCVAR_DECLARE(double, gta4_lod_selection_distance_scale);
 REXCVAR_DECLARE(double, gta4_draw_distance_scale);
@@ -66,7 +86,9 @@ REXCVAR_DECLARE(uint32_t, gta4_drawable_reference_limit);
 
 extern const rex::PPCImageInfo PPCImageConfig;
 extern "C" void gta4_transition_hooks_link_anchor();
+extern "C" void gta4_fault_probe_hooks_link_anchor();
 extern "C" void theft4_ios_audio_hotpaths_link_anchor();
+extern "C" void theft4_intro_configure(bool enabled);
 
 namespace {
 // This bring-up entry is deliberately one-shot per process. A runtime owns
@@ -77,8 +99,8 @@ theft4_boot_event_fn entry_event = nullptr;
 void* entry_context = nullptr;
 
 void ObservedEntry(PPCContext& ctx, uint8_t* base) {
-    std::fprintf(stderr, "THEFT4 AOT ENTRY REACHED\n");
-    std::fflush(stderr);
+    if (!theft4_retail_mode()) std::fprintf(stderr, "THEFT4 AOT ENTRY REACHED\n");
+    if (!theft4_retail_mode()) std::fflush(stderr);
     entry_event(entry_context, "Recompiled GTA IV entry point is executing");
     original_entry(ctx, base);
 }
@@ -92,6 +114,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         // engine. They are observational and still invoke the original AOT
         // functions through their generated __imp__ entry points.
         gta4_transition_hooks_link_anchor();
+        gta4_fault_probe_hooks_link_anchor();
         theft4_ios_audio_hotpaths_link_anchor();
         std::string reason;
         if (!gta4::install::IsInstallReady(game_directory, &reason)) {
@@ -99,13 +122,30 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             return 1;
         }
         // Keep this first-execution experiment separate from existing saves.
+        theft4_apply_retail_diagnostic_policy();
+        if(theft4_retail_mode())REXCVAR_SET(gta4_validate_native_hot_caches,false);
         const auto support = std::filesystem::path(support_directory) / "startup";
         std::filesystem::create_directories(support);
-        const std::string log_path = (support / "runtime.log").string();
-        rex::LogConfig logging;
-        logging.log_file = log_path.c_str();
-        logging.log_to_console = true;
-        rex::InitLogging(logging);
+        if(!theft4_retail_mode()) {
+            const std::string log_path = (support / "runtime.log").string();
+            rex::LogConfig logging;
+            logging.log_file = log_path.c_str();
+            logging.log_to_console = true;
+            // Explicit diagnostic launches can verify which guest file route
+            // supplies the time-cycle table. Retail launches never enable this.
+            if (const char* trace = std::getenv("THEFT4_MOD_FILE_TRACE");
+                trace && std::strcmp(trace, "1") == 0) {
+                logging.category_levels["fs"] = spdlog::level::trace;
+                logging.category_levels["krnl"] = spdlog::level::trace;
+                REXCVAR_SET(log_noisy, true);
+            }
+            rex::InitLogging(logging);
+#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+            if (const char* trace = std::getenv("THEFT4_TRACE_ASPECT");
+                trace && std::strcmp(trace, "1") == 0)
+                REXCVAR_SET(gta4_trace_aspect, true);
+#endif
+        }
         if (const char* flight = std::getenv("THEFT4_GPU_FLIGHT_TRACE");
             flight && std::string_view(flight) == "1") {
             if (!std::getenv("REX_GPU_FLIGHT_TRACE_PATH")) {
@@ -125,7 +165,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         // launch needs one so device testing cannot accumulate large CSVs.
         const auto audio_timing = support / "audio-timing";
         std::error_code audio_timing_error;
-        std::filesystem::remove_all(audio_timing, audio_timing_error);
+        if (!theft4_retail_mode()) std::filesystem::remove_all(audio_timing, audio_timing_error);
         if (const char* timing = std::getenv("THEFT4_AUDIO_TIMING");
             timing && std::string_view(timing) == "1") {
             std::filesystem::create_directories(audio_timing);
@@ -153,6 +193,10 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             REXLOG_INFO("Theft4 bounded frame diagnostics enabled: {}", captures.string());
         }
 #ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+        if (const char* content_probe = std::getenv("THEFT4_NATIVE_CONTENT_PROBE");
+            content_probe && std::string_view(content_probe) == "1") {
+            REXCVAR_SET(gta4_trace_startup_content, true);
+        }
         // Keep detailed diagnostics opt-in. A19 phones skip speculative
         // prewarming after the observed deep render-worker backlog; pipeline
         // creation at the authoritative recording point remains enabled.
@@ -161,12 +205,29 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             device_profile_value ? device_profile_value : "generic";
         const bool a19_profile = device_profile == "a19";
         REXCVAR_SET(gta4_native_pipeline_prewarm, !a19_profile);
-        // Sparse walking preserves the same used-stage set while avoiding a
-        // full texture-slot scan. Keep A19's prewarm policy separate from this
-        // CPU-side optimization, and enable it on memory-constrained iPads too.
+        // Independent restart-only controls retain build 77's exact paths.
+        const auto draw_reuse_option = [](const char* name) {
+            const char* raw = std::getenv(name);
+            const std::string_view value = raw ? raw : "1";
+            if (value != "0" && value != "1")
+                throw std::runtime_error(std::string(name) + " must be 0 or 1");
+            return value == "1";
+        };
+        const bool pipeline_snapshot_reuse = draw_reuse_option("THEFT4_PIPELINE_SNAPSHOT_REUSE");
+        const bool component_scope_reuse = draw_reuse_option("THEFT4_COMPONENT_SCOPE_REUSE");
+        REXCVAR_SET(gta4_native_pipeline_snapshot_reuse, pipeline_snapshot_reuse);
+        REXCVAR_SET(gta4_native_component_scope_reuse, component_scope_reuse);
+        REXLOG_INFO("Theft4 draw reuse: pipeline-snapshots={} component-scopes={}",
+                    pipeline_snapshot_reuse, component_scope_reuse);
+        // Both paths capture the same shader-required slots. Keep an explicit
+        // launch rollback to the full 16-slot walks for device comparisons.
+        const char* sparse_walks_value = std::getenv("THEFT4_SPARSE_TEXTURE_WALKS");
         const bool sparse_texture_walks =
-            a19_profile || device_profile == "legacy-ipad";
+            !sparse_walks_value || std::string_view(sparse_walks_value) != "0";
         REXCVAR_SET(gta4_native_sparse_texture_walks, sparse_texture_walks);
+        // Restore the released shader-specific constant reuse default. Explicit
+        // THEFT4_CONSTANT_REUSE=0 retains the complete immutable-bank path.
+        setenv("THEFT4_CONSTANT_REUSE", "1", 0);
         REXCVAR_SET(gta4_profile_native_detailed_gpu, false);
         REXCVAR_SET(gta4_profile_native_detailed_cpu, false);
         REXCVAR_SET(gta4_profile_native_autostart, false);
@@ -174,10 +235,19 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
             "Theft4 device profile: {} pipeline-prewarm={} sparse-texture-walks={} detailed-profile=false "
             "profile-autostart=false",
             device_profile, !a19_profile, sparse_texture_walks);
+        REXLOG_INFO("Theft4 shader constant projection reuse: {}",
+                    std::string_view(std::getenv("THEFT4_CONSTANT_REUSE")) == "1");
 
         // The launch policy independently selects scene and drawable sizes.
         // Native hooks derive scene = logical video / 1.5 for FSR Quality.
         // The CAMetalLayer is already sized before swapchain creation.
+        const char* skip_intro_value = std::getenv("THEFT4_SKIP_INTRO");
+        if (skip_intro_value && std::string_view(skip_intro_value) != "0" &&
+            std::string_view(skip_intro_value) != "1")
+            throw std::runtime_error("THEFT4_SKIP_INTRO must be 0 or 1");
+        const bool skip_intro = !skip_intro_value || std::string_view(skip_intro_value) == "1";
+        theft4_intro_configure(skip_intro);
+        REXLOG_INFO("Theft4 skip intro: {} (startup initialization retained)", skip_intro);
         const int motion_blur = theft4::motion_blur::ParseSetting(std::getenv("THEFT4_MOTION_BLUR"));
         if (motion_blur < 0)
             throw std::runtime_error("THEFT4_MOTION_BLUR must be 0 or 1");
@@ -193,9 +263,12 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXLOG_INFO("Theft4 depth of field: {} (native title multiplier)",
                     depth_of_field_value && std::string_view(depth_of_field_value) == "0" ? "off" : "on");
         const auto output = theft4_metal_get_output_policy();
-        // Ship the proven projection path while full device-aspect world,
-        // shadow, post-process and HUD transforms remain under validation.
-        REXCVAR_SET(gta4_aspect_ratio, std::string("16:9"));
+        REXCVAR_SET(gta4_aspect_ratio, std::string(output.native_aspect ? "auto" : "16:9"));
+        gta4::aspect::ConfigureDisplay(output.native_aspect
+            ? gta4::aspect::Extent{output.aspect_width, output.aspect_height}
+            : gta4::aspect::Extent{}, output.native_aspect
+            ? gta4::aspect::SafeInsets{output.safe_left, output.safe_top, output.safe_right, output.safe_bottom}
+            : gta4::aspect::SafeInsets{});
         // Use the policy's logical size, not the physical drawable: its FSR
         // ratio produces exactly the selected 720p, 900p or 1080p scene.
         REXCVAR_SET(video_mode_width, int32_t(output.video_width));
@@ -205,11 +278,12 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXCVAR_SET(present_effect, output.fsr1 ? "fsr" : "bilinear");
         REXCVAR_SET(present_fsr_sharpness_reduction,
                     REXCVAR_GET(gta4_fsr1_sharpness_reduction));
-        REXLOG_INFO("Theft4 output policy: render={}x{} output={}x{} aspect=16:9 "
+        REXLOG_INFO("Theft4 output policy: render={}x{} output={}x{} aspect={} "
                     "upscaler={} quality=quality sharpness-reduction={} "
                     "fps-counter=content-sequence",
                     output.render_width, output.render_height,
                     output.output_width, output.output_height,
+                    output.native_aspect ? "display" : "16:9",
                     output.fsr1 ? "fsr1" : "native",
                     REXCVAR_GET(present_fsr_sharpness_reduction));
         // A same-scene iPad A/B showed that forced 8x filtering introduced
@@ -308,17 +382,67 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
 
         const char* anti_aliasing_override = std::getenv("THEFT4_ANTI_ALIASING");
         const std::string_view anti_aliasing =
-            anti_aliasing_override ? anti_aliasing_override : "smaa";
+            anti_aliasing_override ? anti_aliasing_override : "off";
         if (anti_aliasing != "off" && anti_aliasing != "fxaa" &&
             anti_aliasing != "smaa") {
             throw std::runtime_error("THEFT4_ANTI_ALIASING must be off, fxaa, or smaa");
         }
+        // The iOS picker is a canonical selection. Mark it before the headless
+        // renderer resolves compatibility values, otherwise Off inherits the
+        // legacy 4x scene-MSAA default.
+        REXCVAR_SET(gta4_native_anti_aliasing_unified, true);
         REXCVAR_SET(gta4_native_anti_aliasing, std::string(anti_aliasing));
+        const char* sharpening_override = std::getenv("THEFT4_SHARPENING");
+        const std::string_view sharpening = sharpening_override ? sharpening_override : "0";
+        uint32_t sharpening_percent = 0;
+        const auto parsed_sharpening = std::from_chars(sharpening.data(),
+            sharpening.data() + sharpening.size(), sharpening_percent);
+        if (parsed_sharpening.ec != std::errc{} ||
+            parsed_sharpening.ptr != sharpening.data() + sharpening.size() || sharpening_percent > 100)
+            throw std::runtime_error("THEFT4_SHARPENING must be an integer from 0 to 100");
+        REXCVAR_SET(gta4_native_sharpening, sharpening_percent);
         REXLOG_INFO(
             "Theft4 graphics: shadows={} ({} map, {}x range) draw-distance={}x "
             "drawable-limit={} highest-lod={} lod-selection-bias={} reflections={} anti-aliasing={}",
             shadow, shadow_map_size, shadow_distance, draw_distance_scale,
             drawable_reference_limit, highest_lod == "1", lod_distance, reflection, anti_aliasing);
+
+        const char* clock_override = std::getenv("THEFT4_DIRECT_GUEST_CLOCK");
+        const std::string_view clock_policy = clock_override ? clock_override : "1";
+        if (clock_policy != "0" && clock_policy != "1")
+            throw std::runtime_error("THEFT4_DIRECT_GUEST_CLOCK must be 0 or 1");
+        REXCVAR_SET(clock_direct_reads, clock_policy == "1");
+        REXLOG_INFO("Theft4 build82 clock requested: direct={} (applied before guest workers)", clock_policy == "1");
+
+        const char* wait_override = std::getenv("THEFT4_RUNTIME_WAIT_FIXES");
+        const std::string_view wait_policy = wait_override ? wait_override : THEFT4_DEFAULT_RUNTIME_WAIT_POLICY;
+        if (wait_policy != "0" && wait_policy != "1") {
+            throw std::runtime_error("THEFT4_RUNTIME_WAIT_FIXES must be 0 or 1");
+        }
+        if (!rex::thread::ConfigureRuntimeWaitFixes(wait_policy == "1")) {
+            throw std::runtime_error("Runtime wait mode changed; fully close and reopen Theft4");
+        }
+        REXLOG_INFO("Theft4 build82 runtime waits: fixes={} (frozen until app restart); "
+                    "multiwait={} guest-delay={} guest-priority={}",
+                    rex::thread::RuntimeWaitFixesEnabled(),
+                    wait_policy == "1" ? "object-notification" : "build80-polling",
+                    wait_policy == "1" ? "microsecond-deadline" : "build80-millisecond",
+                    wait_policy == "1" ? "guest-increment" : "build80-host-query");
+
+        // Admit the next native command stream only after the previous CPU
+        // publication returns. Guest threads may continue other work, and the
+        // two independently owned GPU slots below still overlap CPU/GPU work.
+        // A fresh launch with 2 restores build 79's CPU admission behavior.
+        const char* cpu_admission_override = std::getenv("THEFT4_CPU_PRESENT_ADMISSION");
+        const std::string_view cpu_admission =
+            cpu_admission_override ? cpu_admission_override : "1";
+        if (cpu_admission != "1" && cpu_admission != "2") {
+            throw std::runtime_error("THEFT4_CPU_PRESENT_ADMISSION must be 1 or 2");
+        }
+        const uint32_t cpu_present_limit = cpu_admission == "1" ? 1u : 2u;
+        REXCVAR_SET(gta4_native_cpu_present_admission, cpu_present_limit);
+        REXLOG_INFO("Theft4 native CPU present admission set to {} ({})",
+                    cpu_present_limit, cpu_admission_override ? "launch override" : "iOS default");
 
         // Use both independently owned native frame slots so the CPU can record
         // frame n+1 while the GPU completes frame n.  The renderer keeps command
@@ -338,27 +462,35 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXCVAR_SET(gta4_native_frames_in_flight, native_frame_slots);
         REXLOG_INFO("Theft4 native frame-resource slots set to {} ({})",
                     native_frame_slots, frames ? "launch override" : "iOS default");
+        // Encode and commit Metal work on the submitting thread. GPU execution
+        // still overlaps the CPU using the existing frame slots. A fresh launch
+        // with 0 restores build 76's separate driver dispatch queue.
+        const char* synchronous_submit_override =
+            std::getenv("THEFT4_MOLTENVK_SYNCHRONOUS_SUBMITS");
+        const std::string_view synchronous_submits =
+            synchronous_submit_override ? synchronous_submit_override : "1";
+        if (synchronous_submits != "0" && synchronous_submits != "1") {
+            throw std::runtime_error(
+                "THEFT4_MOLTENVK_SYNCHRONOUS_SUBMITS must be 0 or 1");
+        }
+        REXCVAR_SET(vulkan_moltenvk_synchronous_queue_submits,
+                    synchronous_submits == "1");
+        REXLOG_INFO("Theft4 MoltenVK synchronous submissions: {} ({})",
+                    synchronous_submits == "1",
+                    synchronous_submit_override ? "launch override" : "iOS default");
 #ifdef THEFT4_LAB_BUILD
-        // A manual performance capture is bounded to a short, explicit run.
-        // Spend that diagnostic budget on pass-level GPU timestamps so an
-        // exterior capture can distinguish scene draws, reflections and
-        // post-processing instead of reporting one unattributed envelope.
-        // The profiler emits no timestamps during normal play.
-        REXCVAR_SET(gta4_profile_native_detailed_gpu, true);
-        REXCVAR_SET(gta4_profile_native_detailed_cpu, true);
-        // Keep the all-frame publication/stage trace cheap, and sample enough
-        // deep frames to identify CPU operations and GPU pass families without
-        // placing hundreds of timestamp boundaries into every submitted frame.
-        REXCVAR_SET(gta4_profile_native_gpu_query_budget, 128u);
-        REXCVAR_SET(gta4_profile_native_interval, 3u);
-        REXCVAR_SET(gta4_profile_native_samples, 120u);
+        // Keep CPU/transport detail for attribution, but use only the coarse
+        // GPU envelope. Per-pass Metal timestamp blits measurably perturb the
+        // workload and are unnecessary for the CPU/physics comparison.
+        REXCVAR_SET(gta4_profile_native_detailed_gpu, false);
+        REXCVAR_SET(gta4_profile_native_detailed_cpu, !theft4_retail_mode());
         const char* capture_setting = std::getenv("THEFT4_PERFORMANCE_CAPTURE");
-        const bool capture_on_launch = capture_setting &&
+        const bool capture_on_launch = !theft4_retail_mode() && capture_setting &&
             std::string_view(capture_setting) == "1";
         REXCVAR_SET(gta4_profile_native_autostart, capture_on_launch);
         REXLOG_INFO(
-            "Theft4 bounded profiler ready: 120 samples / 3-frame interval / "
-            "128 GPU boundaries; capture on launch: {}", capture_on_launch);
+            "Theft4 bounded CPU/pacing plus coarse-GPU profiler ready; "
+            "capture on launch: {}", capture_on_launch);
         // Lab-only default; a fresh launch with 0 restores strict fetch identity
         // in the same executable for controlled A/B runs. Ordinary builds keep
         // the renderer's conservative false default.
@@ -372,8 +504,8 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         REXLOG_INFO("Theft4 Lab texture content cache: {} ({})",
                     content_cache == "1" ? "enabled" : "strict baseline",
                     content_cache_override ? "launch override" : "Lab default");
-        REXCVAR_SET(gta4_native_worker_stall_attribution, true);
-        REXLOG_INFO("Theft4 Lab render-worker stall attribution enabled");
+        REXCVAR_SET(gta4_native_worker_stall_attribution, !theft4_retail_mode());
+        REXLOG_INFO("Theft4 Lab render-worker stall attribution enabled: {}", !theft4_retail_mode());
         // New-area pipelines may still be compiling when their first draw is
         // recorded. In the Lab, defer that draw instead of blocking the whole
         // render worker. Set 0 to restore the exact synchronous wait path.
@@ -396,6 +528,7 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
         rex::RuntimeConfig config;
         config.tool_mode = false;
         config.graphics = theft4_create_bootstrap_graphics();
+        if (!config.graphics) throw std::runtime_error("Selected graphics renderer could not initialize");
         config.input_factory = [](bool) { return theft4_create_bootstrap_input(); };
         config.audio_factory = [](rex::runtime::FunctionDispatcher* dispatcher) {
             return theft4_create_bootstrap_audio(dispatcher);
@@ -452,38 +585,20 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
                 throw std::runtime_error("THEFT4_SUBMIT_PRIMARY_END must be 0 or 1");
             REXCVAR_SET(vulkan_submit_on_primary_buffer_end, value == "1");
         }
-#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
-        else if (device_profile == "legacy-ipad") {
-            // A16-class iPads benefit from batching guest primary buffers:
-            // avoid extra Vulkan/Metal submissions and fence cycles inside
-            // one guest frame. Keep THEFT4_SUBMIT_PRIMARY_END=1 as the exact
-            // rollback/control path for device A/B and synchronization checks.
-            REXCVAR_SET(vulkan_submit_on_primary_buffer_end, false);
-            REXLOG_INFO(
-                "Theft4 legacy iPad PM4 submission batching enabled "
-                "(THEFT4_SUBMIT_PRIMARY_END=1 restores upstream behavior)");
-        }
-#endif
         if (const char* draw_bounds = std::getenv("THEFT4_DRAW_BOUNDS"); draw_bounds) {
             const std::string_view value(draw_bounds);
             if (value != "0" && value != "1")
                 throw std::runtime_error("THEFT4_DRAW_BOUNDS must be 0 or 1");
             const bool enabled = value == "1";
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu, enabled);
-            // The broader scissored mode is deliberately excluded because it
-            // can execute many UI vertices on the CPU.
+            // The broader scissored mode is deliberately excluded from this
+            // experiment because it can execute many UI vertices on the CPU.
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
         } else if (device_profile == "legacy-ipad") {
-            // A16-class GPUs can pay for oversized EDRAM ownership ranges on
-            // unclipped draws. Estimate only the existing safe, unscissored
-            // cases so the renderer can transfer the smaller proven range.
-            // Unsupported shaders or GPU-newer inputs retain the full-range
-            // fallback; THEFT4_DRAW_BOUNDS=0 restores the baseline path.
+            // Preserve the A16-class iPad's safe, unscissored extent estimate.
+            // It remains independently reversible with THEFT4_DRAW_BOUNDS=0.
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu, true);
             REXCVAR_SET(execute_unclipped_draw_vs_on_cpu_with_scissor, false);
-            REXLOG_INFO(
-                "Theft4 legacy iPad unclipped-draw extent estimation enabled "
-                "(THEFT4_DRAW_BOUNDS=0 restores baseline)");
         }
         // Keep the mechanism and its diagnostic logging independently
         // controllable so a scored Release run doesn't pay for periodic log
@@ -534,8 +649,26 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
                     REXCVAR_GET(vulkan_transfer_in_draw_pass),
                     REXCVAR_GET(vulkan_tight_render_area));
         event(context, "Initializing Xbox services and registering the real AOT game functions");
+#ifdef THEFT4_HAS_GTA4_NATIVE_BACKEND
+        const auto modEnabled = [](const char* key) {
+            const char* value = std::getenv(key);
+            return value && std::strcmp(value, "1") == 0;
+        };
+        gta4::mods::ConfigureGameplay(modEnabled("THEFT4_MOD_GOD_MODE"),
+                                     modEnabled("THEFT4_MOD_UNLIMITED_AMMO"));
+#endif
         if (runtime.Setup(PPCImageConfig, std::move(config)) != 0)
             throw std::runtime_error("Xbox/AOT runtime setup failed");
+        if (const char* modDirectory = std::getenv("THEFT4_MOD_TIMECYCLE_DIRECTORY");
+            modDirectory && *modDirectory) {
+            event(context, "Preparing Custom Time Cycle by SBerrix; original game files preserved");
+            const auto archive = theft4::mods::PrepareTimeCycleArchive(game_directory,
+                modDirectory, support / "mods" / "custom-timecycle");
+            theft4::mods::MountTimeCycle(*runtime.file_system(), modDirectory, archive);
+            event(context, archive.empty()
+                ? "Custom Time Cycle by SBerrix enabled for loose game files"
+                : "Custom Time Cycle by SBerrix enabled for packed and loose game files");
+        }
         event(context, "Xbox services initialized; resolving game imports and applying TU8");
         if (runtime.LoadXexImage("game:/default.xex") != 0)
             throw std::runtime_error("Game module or Xbox import resolution failed");

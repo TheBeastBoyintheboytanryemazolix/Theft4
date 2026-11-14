@@ -1,3 +1,4 @@
+#include "theft4_retail_mode.h"
 #include "theft4_metal_presenter.h"
 
 #import <Metal/Metal.h>
@@ -6,9 +7,9 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <string>
 #include "theft4_frame_time_history.h"
 #include "theft4_publication_trace.h"
-#include "theft4_frame_stage_trace.h"
 
 namespace {
 
@@ -25,8 +26,7 @@ std::atomic<uint64_t> completed_frames{0};
 std::atomic<uint64_t> published_game_frames{0};
 theft4::FrameTimeHistory<> frame_time_history;
 theft4::PublicationTrace<> publication_trace;
-theft4::FrameStageTrace<> frame_stage_trace;
-std::atomic<int64_t> display_target_ns{0};
+std::atomic<bool> fps_counter_enabled{false};
 
 // Protected by presenter_lock. Latched before the game renderer is created.
 theft4_output_policy launch_output = theft4_output_policy_for_enhanced(true);
@@ -36,6 +36,9 @@ void SetOutputPolicy(theft4_output_policy output) {
   launch_output = output;
   if (bound_layer) {
     bound_layer.contentsScale = 1.0;
+    // Projection uses the exact device shape. Fill the view even when a lower
+    // pixel budget rounds its width/height by one pixel.
+    bound_layer.contentsGravity = output.native_aspect ? kCAGravityResize : kCAGravityResizeAspect;
     bound_layer.drawableSize = CGSizeMake(output.output_width, output.output_height);
   }
   os_unfair_lock_unlock(&presenter_lock);
@@ -68,6 +71,14 @@ id<MTLCommandBuffer> EnsureFrameCommandBufferLocked() {
 }
 
 }  // namespace
+
+const char* theft4_metal_shader_library_directory(void) {
+  static const std::string directory=[] {
+    NSString* path=[NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"MetalShaders"];
+    return std::string(path.fileSystemRepresentation ?: "");
+  }();
+  return directory.c_str();
+}
 
 void theft4_metal_bind_layer(void* raw_layer) {
   CAMetalLayer* layer = (__bridge CAMetalLayer*)raw_layer;
@@ -123,6 +134,18 @@ theft4_output_policy theft4_metal_get_output_policy(void) {
   const auto output = launch_output;
   os_unfair_lock_unlock(&presenter_lock);
   return output;
+}
+
+void theft4_metal_set_native_aspect_output(uint32_t render_height, bool fsr1,
+    uint32_t native_width, uint32_t native_height, bool fixed_1080_output_profile,
+    double safe_left, double safe_top, double safe_right, double safe_bottom) {
+  auto policy = theft4_output_policy_for_native_aspect_lab(
+      render_height, fsr1, native_width, native_height, fixed_1080_output_profile);
+  policy.safe_left = safe_left;
+  policy.safe_top = safe_top;
+  policy.safe_right = safe_right;
+  policy.safe_bottom = safe_bottom;
+  SetOutputPolicy(policy);
 }
 
 bool theft4_metal_has_layer(void) {
@@ -186,6 +209,8 @@ bool theft4_metal_present_clear(double red, double green, double blue,
 }
 
 void theft4_frame_counter_note_published(void) {
+  if (!fps_counter_enabled.load(std::memory_order_relaxed) &&
+      !frame_time_history.Enabled() && !publication_trace.Enabled()) return;
   const uint64_t frame = published_game_frames.fetch_add(1, std::memory_order_relaxed) + 1;
   if (frame_time_history.Enabled() || publication_trace.Enabled()) {
     const uint64_t now_ns = uint64_t(CACurrentMediaTime() * 1e9);
@@ -193,52 +218,18 @@ void theft4_frame_counter_note_published(void) {
     publication_trace.Record(frame, now_ns);
   }
 }
-
+void theft4_frame_counter_set_enabled(bool enabled) {
+  fps_counter_enabled.store(enabled, std::memory_order_relaxed);
+}
 uint64_t theft4_publication_capture_start(void) { return publication_trace.Start(); }
-void theft4_publication_capture_stop(void) {
-  publication_trace.Stop();
-  frame_stage_trace.Stop();
-}
-uint64_t theft4_frame_stages_start(void) { return frame_stage_trace.Start(); }
-void theft4_frame_stages_stop(void) { frame_stage_trace.Stop(); }
-void theft4_frame_stage_record(uint32_t stage, uint64_t frame, uint64_t a, uint64_t b) {
-  if (!frame_stage_trace.Enabled()) return;
-  frame_stage_trace.Record({stage, frame, uint64_t(CACurrentMediaTime() * 1e9), a, b});
-}
-uint32_t theft4_frame_stages_read(uint64_t* cursor, theft4_frame_stage_sample* samples,
-    uint32_t capacity, uint64_t* lost) {
-  if (!cursor || !samples || !lost) return 0;
-  // Copy explicitly across the C ABI; no type-punning of distinct struct types.
-  theft4::FrameStageSample batch[256];
-  const auto n = frame_stage_trace.CopyAfter(*cursor, batch, std::min(capacity, 256u), *lost);
-  for (size_t i = 0; i < n; ++i)
-    samples[i] = {batch[i].stage, batch[i].frame, batch[i].monotonic_ns, batch[i].a, batch[i].b};
-  return uint32_t(n);
-}
-void theft4_pacing_note_display_target(double target_timestamp) {
-  const double now = CACurrentMediaTime();
-  const double delta = target_timestamp - now;
-  if (!std::isfinite(delta) || delta < -0.1 || delta > 0.1) {
-    display_target_ns.store(0, std::memory_order_release);
-    return;
-  }
-  const auto steady = std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count();
-  display_target_ns.store(steady + int64_t(delta * 1e9), std::memory_order_release);
-  theft4_frame_stage_record(THEFT4_STAGE_DISPLAY_TARGET, 0, uint64_t(target_timestamp * 1e9), 0);
-}
-int64_t theft4_pacing_display_target_ns(void) {
-  const auto target = display_target_ns.load(std::memory_order_acquire);
-  const auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count();
-  return target > 0 && target > now - 100'000'000 && target < now + 100'000'000 ? target : 0;
-}
+void theft4_publication_capture_stop(void) { publication_trace.Stop(); }
 uint32_t theft4_publication_capture_read(uint64_t* cursor,
     theft4_publication_sample* samples, uint32_t capacity, uint64_t* lost) {
   if (!cursor || !samples || !lost || !capacity) return 0;
-  static_assert(sizeof(theft4_publication_sample) == sizeof(theft4::PublicationSample));
-  return static_cast<uint32_t>(publication_trace.CopyAfter(*cursor,
-      reinterpret_cast<theft4::PublicationSample*>(samples), capacity, *lost));
+  theft4::PublicationSample batch[256];
+  const auto count = publication_trace.CopyAfter(*cursor, batch, std::min(capacity, 256u), *lost);
+  for (size_t i = 0; i < count; ++i) samples[i] = {batch[i].frame, batch[i].monotonic_ns};
+  return uint32_t(count);
 }
 
 void theft4_frame_time_set_enabled(bool enabled) {
@@ -332,7 +323,7 @@ bool theft4_metal_renderer_end_frame(uint32_t frontbuffer_ptr,
     frame_command_buffer = nil;
     dispatch_semaphore_t slots = frame_slots;
     const uint64_t frame = submitted_frames.fetch_add(1) + 1;
-    buffer.label = [NSString stringWithFormat:@"Theft4 Guest Frame %llu",
+    if(!theft4_retail_mode()) buffer.label = [NSString stringWithFormat:@"Theft4 Guest Frame %llu",
                                                (unsigned long long)frame];
     [buffer addCompletedHandler:^(id<MTLCommandBuffer> completed) {
       (void)completed;

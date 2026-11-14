@@ -9,9 +9,20 @@ function(liberty_apply_dependency_patches repository_root)
     set(arguments --root "${repository_root}"
         --patch-directory "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/dependency-patches")
     if(THEFT4_LAB_BUILD)
+        # This function is called by the top-level CMakeLists before ios/
+        # is added. The iOS app's default identity is declared in
+        # ios/CMakeLists, which is therefore not visible here on a clean
+        # configure. Mirror that default only when the caller has not
+        # explicitly supplied an identity; explicit cache overrides remain
+        # subject to the isolated-identity guard below.
+        if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT DEFINED THEFT4_BUNDLE_IDENTIFIER)
+            set(THEFT4_BUNDLE_IDENTIFIER "com.lukebrosious.theft4")
+        endif()
         if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" OR
-           NOT THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4")
-            message(FATAL_ERROR "The M5 source-export path requires the official iOS Theft4 identity")
+           (NOT THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4" AND
+            NOT (THEFT4_ASTC_EXPERIMENT AND
+                 THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4.astc")))
+            message(FATAL_ERROR "The M5 source-export path requires the official or isolated ASTC iOS identity")
         endif()
         # Frozen Lab inputs are already patched. Check every expected checksum
         # without initializing dependencies, writing Git state or applying fixes.

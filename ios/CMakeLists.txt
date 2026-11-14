@@ -3,6 +3,21 @@ enable_language(OBJC)
 set(THEFT4_BUNDLE_IDENTIFIER "com.lukebrosious.theft4" CACHE STRING "Theft4 app bundle ID")
 set(THEFT4_DISPLAY_NAME "Theft4" CACHE STRING "Name shown on the device")
 option(THEFT4_LAB_BUILD "Enable the M5 performance and capture baseline" ON)
+option(THEFT4_DIRECT_METAL_BACKEND "Compile the live direct Metal frame backend" OFF)
+option(THEFT4_DIRECT_METAL_DEFAULT "Select direct Metal on normal icon launches" OFF)
+set(THEFT4_METAL_LIBRARIES "" CACHE PATH "Offline iOS game shaders with manifest.tsv and Host utility libraries")
+set(THEFT4_METAL_HOST_LIBRARIES "" CACHE PATH "Offline iOS host utility shaders; empty uses the game directory's Host subdirectory")
+if(THEFT4_DIRECT_METAL_DEFAULT AND NOT THEFT4_DIRECT_METAL_BACKEND)
+    message(FATAL_ERROR "Direct Metal launch selection requires its compiled backend")
+endif()
+if(THEFT4_DIRECT_METAL_DEFAULT AND NOT THEFT4_METAL_LIBRARIES)
+    message(FATAL_ERROR "Direct Metal launch selection requires bundled offline iOS shaders")
+endif()
+option(THEFT4_NATIVE_METAL_CAPTURE "Record bounded private CPU draws for direct Metal replay" OFF)
+set(THEFT4_RENDER_SOURCE_REVISION "development" CACHE STRING "Source revision for private draw captures")
+if(THEFT4_NATIVE_METAL_CAPTURE AND NOT THEFT4_LAB_BUILD)
+    message(FATAL_ERROR "Private Metal draw capture requires a lab build")
+endif()
 if(THEFT4_LAB_BUILD)
     if(NOT THEFT4_BUNDLE_IDENTIFIER STREQUAL "com.lukebrosious.theft4" OR
        NOT THEFT4_DISPLAY_NAME STREQUAL "Theft4")
@@ -13,6 +28,8 @@ else()
     set(THEFT4_LAB_PLIST_VALUE "<false/>")
 endif()
 option(THEFT4_SIGN_DEVICE "Sign Theft4 with the configured development team" OFF)
+option(THEFT4_SUSTAINED_EXECUTION
+    "Request the system sustained performance profile on supported devices" OFF)
 set(THEFT4_ARM64_TUNE "" CACHE STRING
     "ARM64 scheduling target; empty uses the compiler default without changing ISA requirements")
 option(THEFT4_ENABLE_THIN_LTO
@@ -21,6 +38,9 @@ option(THEFT4_COMPILE_GTA4_NATIVE_BACKEND
     "Compile-check LibertyRecomp's GTA IV native renderer for iOS without selecting it" OFF)
 option(THEFT4_ENABLE_GTA4_NATIVE_BACKEND
     "Embed the GTA IV native renderer behind THEFT4_GRAPHICS_BACKEND=native" OFF)
+if(THEFT4_DIRECT_METAL_BACKEND AND NOT THEFT4_ENABLE_GTA4_NATIVE_BACKEND)
+    message(FATAL_ERROR "The live Metal frontend requires the GTA IV native backend")
+endif()
 
 set(THEFT4_NATIVE_FONT_ASSET_ROOT
     "${CMAKE_SOURCE_DIR}/LibertyRecompLib/font_atlases")
@@ -177,8 +197,11 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             "${THEFT4_GTA4_NATIVE_ROOT}/split_postfx_pass.cpp"
             "${THEFT4_GTA4_NATIVE_ROOT}/sun_shafts_pass.cpp"
             "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_aspect_hooks.cpp"
+            "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_gameplay_mods.cpp"
             "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_font_selection_trace.cpp"
             "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_native_hooks.cpp"
+            # Strong stage wrappers must be in this force-loaded archive.
+            "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_physics_hooks.cpp"
             bridge/theft4_motion_blur.cpp
             "${THEFT4_GTA4_NATIVE_SHADER_CACHE_ROOT}/shader/shader_cache.cpp"
             "${THEFT4_GTA4_NATIVE_SMOLV_ROOT}/smolv.cpp")
@@ -193,7 +216,8 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             "${CMAKE_SOURCE_DIR}/thirdparty/json/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
-            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include")
+            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
+            "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/FFmpeg")
         target_link_libraries(theft4_gta4_native_compile PRIVATE
             rex::runtime
             xxHash::xxhash
@@ -204,11 +228,62 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             REXGLUE_BUILD_CONFIG="$<CONFIG>"
             GTA4_NATIVE_FONT_ASSET_ROOT="${THEFT4_NATIVE_FONT_ASSET_ROOT}")
         target_compile_features(theft4_gta4_native_compile PRIVATE cxx_std_23)
+        if(THEFT4_NATIVE_METAL_CAPTURE OR THEFT4_DIRECT_METAL_BACKEND)
+            target_sources(theft4_gta4_native_compile PRIVATE
+                bridge/theft4_render_plan.cpp
+                bridge/theft4_render_plan_source.cpp)
+        endif()
+        if(THEFT4_DIRECT_METAL_BACKEND)
+            # The Direct Metal app has no Vulkan runtime. Keep the legacy
+            # Vulkan compatibility objects linkable without pulling in
+            # MoltenVK; its loader stub fails closed if Vulkan is requested.
+            target_sources(theft4_core_bridge PRIVATE
+                bridge/theft4_vulkan_loader_stub.cpp)
+            target_sources(theft4_gta4_native_compile PRIVATE
+                bridge/theft4_frame_plan.cpp
+                bridge/theft4_postfx_plan.cpp
+                bridge/theft4_primitive_expansion.cpp
+                bridge/theft4_metal_backend.mm
+                bridge/theft4_native_metal.mm
+                bridge/theft4_metal_shader_catalog.cpp
+                bridge/theft4_metal_shader_store.mm
+                bridge/theft4_metal_resources.mm
+                bridge/theft4_metal_plan.mm
+                bridge/theft4_metal_frame.mm
+                bridge/theft4_metal_host_shaders.mm)
+            # Xcode does not preserve the mixed C++/ObjC++ language expression
+            # here. Set ARC on each owning Metal source explicitly: receipts,
+            # resources and queued draw records retain Objective-C objects.
+            set_source_files_properties(
+                bridge/theft4_metal_backend.mm
+                bridge/theft4_native_metal.mm
+                bridge/theft4_metal_shader_store.mm
+                bridge/theft4_metal_resources.mm
+                bridge/theft4_metal_plan.mm
+                bridge/theft4_metal_frame.mm
+                bridge/theft4_metal_host_shaders.mm
+                PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+            target_compile_definitions(theft4_gta4_native_compile PUBLIC THEFT4_DIRECT_METAL_BACKEND=1)
+            target_link_libraries(theft4_gta4_native_compile PRIVATE
+                "-framework Foundation" "-framework Metal" "-framework QuartzCore")
+        endif()
+        if(THEFT4_NATIVE_METAL_CAPTURE)
+            target_sources(theft4_gta4_native_compile PRIVATE bridge/theft4_draw_capture.cpp)
+            target_compile_definitions(theft4_gta4_native_compile PRIVATE
+                "THEFT4_RENDER_SOURCE_REVISION=\"${THEFT4_RENDER_SOURCE_REVISION}\"")
+            # The bridge constructs this class outside the native archive;
+            # every header consumer must agree on the optional sidecar layout.
+            target_compile_definitions(theft4_gta4_native_compile PUBLIC
+                THEFT4_NATIVE_METAL_CAPTURE=1)
+        endif()
         if(THEFT4_LAB_BUILD)
             target_compile_definitions(theft4_gta4_native_compile PRIVATE THEFT4_LAB_BUILD=1)
         endif()
         target_compile_options(theft4_gta4_native_compile PRIVATE
             -Wno-unused-variable)
+        set_source_files_properties(
+            "${THEFT4_GTA4_RECOMP_SOURCE_ROOT}/gta4_physics_hooks.cpp"
+            PROPERTIES COMPILE_OPTIONS "-ffp-model=strict")
         set_source_files_properties(
             "${THEFT4_GTA4_NATIVE_SHADER_CACHE_ROOT}/shader/shader_cache.cpp"
             PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers")
@@ -248,7 +323,7 @@ if(THEFT4_ENABLE_GAME_STARTUP)
                 "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/stb")
             target_link_libraries(theft4_core_bridge PRIVATE
                 theft4_gta4_native_compile libzstd_static)
-            target_compile_definitions(theft4_core_bridge PRIVATE
+            target_compile_definitions(theft4_core_bridge PUBLIC
                 THEFT4_HAS_GTA4_NATIVE_BACKEND=1)
             # The native hook wrappers intentionally interpose weak generated
             # AOT entry points, so every archive object must be retained.
@@ -259,6 +334,7 @@ if(THEFT4_ENABLE_GAME_STARTUP)
 
     target_sources(theft4_core_bridge PRIVATE
         bridge/theft4_startup.cpp
+        bridge/theft4_timecycle_archive.cpp
         bridge/theft4_bootstrap_graphics.cpp
         bridge/theft4_metal_presenter.mm
         bridge/theft4_bootstrap_audio.cpp
@@ -292,9 +368,8 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         # desktop host. Apple codegen emits weak public entry points and
         # separate __imp__ originals specifically for these strong wrappers.
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src/gta4_transition_hooks.cpp"
-        # Apply the existing traffic, parked-car, and pedestrian density CVars
-        # to the real iOS guest hooks, just as the desktop host does.
-        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src/gta4_population_hooks.cpp")
+        bridge/theft4_intro_hooks.cpp
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src/gta4_fault_probe_hooks.cpp")
     target_sources(theft4_core_bridge PRIVATE
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src/graphics/flags.cpp"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src/ui/renderdoc_api.cpp"
@@ -342,14 +417,20 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_include_directories(theft4_core_bridge PRIVATE
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src/input"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/crypto"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src"
-        "${THEFT4_GENERATED_DIR}"
-        # The iOS target compiles the production Vulkan/UI sources directly,
-        # so expose the vendored Vulkan headers to the bridge target even when
-        # the optional XeniOS MoltenVK probe is not present.
+        "${THEFT4_GENERATED_DIR}")
+
+    # The iOS bridge compiles the legacy Vulkan command processor and utility
+    # sources as an inert compatibility archive even when the app selects
+    # Direct Metal. Those sources are not part of rexcore's public interface,
+    # so their vendored SDK header roots must be explicit on this target.
+    target_include_directories(theft4_core_bridge PRIVATE
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
-        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include")
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/volk"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-tools/include")
     target_link_libraries(theft4_core_bridge PRIVATE theft4_game_code
         SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler
         xxHash::xxhash)
@@ -360,25 +441,6 @@ if(THEFT4_ENABLE_GAME_STARTUP)
     # Kernel exports register themselves during static initialization. Retain
     # all real exports, including ones found later by guest ordinal lookup.
     target_link_options(theft4_core_bridge INTERFACE "LINKER:-force_load,$<TARGET_FILE:rexruntime>")
-
-    # CI builds the vendored MoltenVK static XCFramework directly when no
-    # external XeniOS build directory is available.
-    set(THEFT4_MOLTENVK_IOS_LIB_DIR "" CACHE PATH
-        "Optional directory containing the device libMoltenVK.a")
-    if(EXISTS "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
-        target_link_libraries(theft4_core_bridge PRIVATE
-            "${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a"
-            "-framework Metal"
-            "-framework Foundation"
-            "-framework CoreFoundation"
-            "-framework CoreGraphics"
-            "-framework IOSurface")
-        target_link_options(theft4_core_bridge INTERFACE
-            "LINKER:-force_load,${THEFT4_MOLTENVK_IOS_LIB_DIR}/libMoltenVK.a")
-        target_compile_definitions(theft4_core_bridge PRIVATE
-            REX_HAS_VULKAN=1
-            THEFT4_HAS_MOLTENVK_PROBE=1)
-    endif()
 
     # XeniOS is kept as an independent reference app, but its locally built,
     # public MoltenVK archive gives us a fast device capability gate before the
@@ -392,11 +454,11 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         CACHE PATH "Optional XeniOS generated shader directory for direct resolve experiments")
     option(THEFT4_ENABLE_XENIOS_DIRECT_RESOLVE
            "Build the experimental XeniOS-derived direct host resolve path" OFF)
-    target_sources(theft4_core_bridge PRIVATE
-        bridge/theft4_vulkan_probe.cpp
-        bridge/theft4_rex_vulkan_gate.cpp)
     if(EXISTS "${THEFT4_XENIOS_IOS_LIB_DIR}/libMoltenVK.a")
-            target_include_directories(theft4_core_bridge PRIVATE
+        target_sources(theft4_core_bridge PRIVATE
+            bridge/theft4_vulkan_probe.cpp
+            bridge/theft4_rex_vulkan_gate.cpp)
+        target_include_directories(theft4_core_bridge PRIVATE
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
             "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/glslang"
@@ -434,10 +496,17 @@ if(THEFT4_ENABLE_GAME_STARTUP)
 endif()
 
 set(THEFT4_ASSET_CATALOG "${CMAKE_CURRENT_SOURCE_DIR}/Theft4/Assets.xcassets")
+set(THEFT4_TIMECYCLE_RESOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Theft4/Mods/CustomTimeCycle/timecyc.dat"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Theft4/Mods/CustomTimeCycle/preview.jpg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Theft4/Mods/CustomTimeCycle/metadata.plist")
+set_source_files_properties(${THEFT4_TIMECYCLE_RESOURCES} PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources/Mods/CustomTimeCycle")
 add_executable(Theft4 MACOSX_BUNDLE Theft4/main.m Theft4/Theft4TouchControls.m
+    Theft4/Theft4TextureSources.m
     Theft4/Theft4LauncherView.m
-    Theft4/Theft4FrameTimeView.m Theft4/Theft4CityView.m
-    Theft4/XeniOS-Touch-LICENSE.txt "${THEFT4_ASSET_CATALOG}")
+    Theft4/Theft4FrameTimeView.m Theft4/Theft4CityView.m Theft4/Theft4CPUUsageView.m
+    Theft4/XeniOS-Touch-LICENSE.txt "${THEFT4_ASSET_CATALOG}" ${THEFT4_TIMECYCLE_RESOURCES})
 set_source_files_properties(Theft4/XeniOS-Touch-LICENSE.txt PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources)
 set_source_files_properties("${THEFT4_ASSET_CATALOG}" PROPERTIES
@@ -449,6 +518,29 @@ target_link_libraries(Theft4 PRIVATE theft4_core_bridge
     "-framework UniformTypeIdentifiers")
 target_link_options(Theft4 PRIVATE "LINKER:-dead_strip")
 target_compile_options(Theft4 PRIVATE -fobjc-arc)
+if(THEFT4_DIRECT_METAL_DEFAULT)
+    target_compile_definitions(theft4_core_bridge PRIVATE THEFT4_DIRECT_METAL_DEFAULT=1)
+    target_compile_definitions(Theft4 PRIVATE THEFT4_DIRECT_METAL_DEFAULT=1)
+endif()
+if(THEFT4_DIRECT_METAL_BACKEND AND THEFT4_METAL_LIBRARIES)
+    if(NOT THEFT4_METAL_HOST_LIBRARIES)
+        set(THEFT4_METAL_HOST_LIBRARIES "${THEFT4_METAL_LIBRARIES}/Host")
+    endif()
+    if(NOT EXISTS "${THEFT4_METAL_LIBRARIES}/manifest.tsv" OR
+       NOT EXISTS "${THEFT4_METAL_HOST_LIBRARIES}/HOST_SHADER_MANIFEST.json")
+        message(FATAL_ERROR "Direct Metal requires game and host shader manifests")
+    endif()
+    file(GLOB metal_game_libraries CONFIGURE_DEPENDS "${THEFT4_METAL_LIBRARIES}/*.metallib")
+    file(GLOB metal_host_libraries CONFIGURE_DEPENDS "${THEFT4_METAL_HOST_LIBRARIES}/*.metallib")
+    if(NOT metal_game_libraries OR NOT metal_host_libraries)
+        message(FATAL_ERROR "Direct Metal offline shader libraries are missing")
+    endif()
+    list(APPEND metal_game_libraries "${THEFT4_METAL_LIBRARIES}/manifest.tsv")
+    list(APPEND metal_host_libraries "${THEFT4_METAL_HOST_LIBRARIES}/HOST_SHADER_MANIFEST.json")
+    target_sources(Theft4 PRIVATE ${metal_game_libraries} ${metal_host_libraries})
+    set_source_files_properties(${metal_game_libraries} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/MetalShaders")
+    set_source_files_properties(${metal_host_libraries} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/MetalShaders/Host")
+endif()
 if(THEFT4_LAB_BUILD AND THEFT4_ENABLE_GTA4_NATIVE_BACKEND)
     target_compile_definitions(Theft4 PRIVATE THEFT4_LAB_NATIVE_CAPTURE=1)
 endif()
@@ -489,6 +581,11 @@ if(THEFT4_SIGN_DEVICE AND NOT CMAKE_OSX_SYSROOT MATCHES "(iphonesimulator|iPhone
         XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic
         XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Apple Development"
         XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${LIBERTY_IOS_DEVELOPMENT_TEAM}")
+    if(THEFT4_SUSTAINED_EXECUTION)
+        set_target_properties(Theft4 PROPERTIES
+            XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
+                "${CMAKE_CURRENT_SOURCE_DIR}/Theft4/Theft4Sustained.entitlements")
+    endif()
 endif()
 
 # Compile the consumer as C, proving the public boundary has no C++/UIKit types.

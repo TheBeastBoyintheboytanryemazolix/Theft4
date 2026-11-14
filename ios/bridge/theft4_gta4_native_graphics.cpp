@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include <rex/cvar.h>
@@ -19,6 +20,9 @@
 #include <rex/ui/vulkan/provider.h>
 
 #include "../../glue/rexglue-sdk-main/src/graphics/gta4_native/graphics_system.h"
+#ifdef THEFT4_DIRECT_METAL_BACKEND
+#include "theft4_metal_backend.h"
+#endif
 
 // The desktop frontend normally owns these user-facing GTA IV settings. The
 // iOS shell has no desktop GTA4App, so publish the same renderer defaults here
@@ -85,7 +89,7 @@ REXCVAR_DEFINE_STRING(gta4_reflection_aa, "original", "GTA IV/Graphics/Reflectio
 REXCVAR_DEFINE_STRING(gta4_reflection_capture_distance, "original",
                       "GTA IV/Graphics/Reflections/Advanced", "Reflection capture distance")
     .allowed({"original", "extended", "far"});
-REXCVAR_DEFINE_STRING(gta4_native_anti_aliasing, "smaa",
+REXCVAR_DEFINE_STRING(gta4_native_anti_aliasing, "off",
                       "GTA IV/Graphics/Anti-Aliasing", "Anti-aliasing mode")
     .allowed({"off", "fxaa", "smaa", "msaa2x", "msaa4x", "ssaa2x", "ssaa4x",
               "ssaa6x", "ssaa8x", "ssaa10x", "ssaa12x", "ssaa14x", "ssaa16x",
@@ -122,10 +126,6 @@ REXCVAR_DEFINE_UINT32(gta4_drawable_reference_limit, 13000, "GTA IV/Graphics/LOD
     .range(13000, 40000)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-// Apply the iOS launcher's persisted choices to the actual renderer CVars.
-// main.m exports these values immediately before the one-shot game runtime is
-// created; merely setting environment variables is not enough because the
-// native renderer reads the CVar registry, not those launcher variables.
 static void ApplyTheft4LaunchGraphicsCVars() {
   const char* shadow = std::getenv("THEFT4_SHADOW_QUALITY");
   if (shadow) {
@@ -197,6 +197,10 @@ class Theft4NativeMetalLayerSurface final : public rex::ui::Surface {
   void* layer_ = nullptr;
 };
 
+std::mutex native_lifecycle_mutex;
+rex::graphics::gta4_native::Gta4NativeGraphicsSystem* native_lifecycle_renderer = nullptr;
+bool native_lifecycle_active = true;
+
 struct AttachContext {
   rex::ui::vulkan::VulkanPresenter* presenter;
   rex::ui::Surface* surface;
@@ -209,15 +213,25 @@ void AttachNativePresenter(void* opaque) {
 
 }  // namespace
 
+extern "C" bool theft4_native_set_active(bool active) {
+  std::lock_guard lock(native_lifecycle_mutex);
+  native_lifecycle_active = active;
+  return !native_lifecycle_renderer || native_lifecycle_renderer->SetHostActive(active);
+}
+
+extern "C" void theft4_native_unregister_renderer(void* renderer) {
+  std::lock_guard lock(native_lifecycle_mutex);
+  if (native_lifecycle_renderer == renderer) native_lifecycle_renderer = nullptr;
+}
+
 std::unique_ptr<rex::system::IGraphicsSystem>
 theft4_create_gta4_native_graphics() {
+  ApplyTheft4LaunchGraphicsCVars();
   void* layer = theft4_metal_bound_layer();
   if (!layer) {
     REXLOG_ERROR("Theft4 gta4-native renderer has no bound CAMetalLayer");
     return nullptr;
   }
-
-  ApplyTheft4LaunchGraphicsCVars();
 
   // High-resolution replacement atlases aren't packaged in the iOS app yet.
   // Use the title's stock fonts rather than performing failed filesystem
@@ -251,7 +265,37 @@ theft4_create_gta4_native_graphics() {
 
   REXLOG_INFO("Theft4 selected gta4-native on '{}'",
               provider->vulkan_device()->properties().deviceName);
-  return std::make_unique<
+  REXLOG_INFO("Theft4 build79: command-attribution=enabled-in-long-capture "
+              "lifecycle=worker-pause-gpu-drain pause-wait-ms=750");
+  auto graphics = std::make_unique<
       rex::graphics::gta4_native::Gta4NativeGraphicsSystem>(
       std::move(provider), std::move(presenter), std::move(surface));
+  {
+    std::lock_guard lock(native_lifecycle_mutex);
+    graphics->SetHostActive(native_lifecycle_active);
+    native_lifecycle_renderer = graphics.get();
+  }
+  return graphics;
 }
+
+#ifdef THEFT4_DIRECT_METAL_BACKEND
+std::unique_ptr<rex::system::IGraphicsSystem>
+theft4_create_gta4_metal_graphics() {
+  ApplyTheft4LaunchGraphicsCVars();
+  void* layer=theft4_metal_bound_layer();
+  if(!layer){REXLOG_ERROR("Theft4 direct Metal renderer has no bound CAMetalLayer");return nullptr;}
+  rex::cvar::SetFlagByName("gta4_native_vector_fonts","false");
+  auto backend=theft4::metal::CreateFrameBackend(layer,theft4_metal_shader_library_directory(),2,
+      [](const char* message){REXLOG_INFO("{}",message);});
+  if(!backend||!backend->Capabilities().max_image_dimension_2d) {
+    REXLOG_ERROR("Theft4 direct Metal renderer rejected the Apple GPU");return nullptr;
+  }
+  auto graphics=std::make_unique<rex::graphics::gta4_native::Gta4NativeGraphicsSystem>(std::move(backend));
+  {
+    std::lock_guard lock(native_lifecycle_mutex);
+    graphics->SetHostActive(native_lifecycle_active);native_lifecycle_renderer=graphics.get();
+  }
+  REXLOG_INFO("Theft4 selected direct Metal; title command frontend, no Vulkan provider or presenter");
+  return graphics;
+}
+#endif
