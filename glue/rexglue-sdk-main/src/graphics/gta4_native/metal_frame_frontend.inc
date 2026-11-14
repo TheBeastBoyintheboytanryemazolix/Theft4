@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 #include <cstdio>
+#include <cstring>
 namespace {
 std::mutex g_theft4_metal_diag_mutex;
 std::array<std::string,16> g_theft4_metal_diag_rows;
