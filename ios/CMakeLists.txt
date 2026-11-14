@@ -451,6 +451,17 @@ if(THEFT4_ENABLE_GAME_STARTUP)
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/crypto"
         "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/gta4-recomp/src"
         "${THEFT4_GENERATED_DIR}")
+
+    # The iOS bridge compiles the legacy Vulkan command processor and utility
+    # sources as an inert compatibility archive even when the app selects
+    # Direct Metal. Those sources are not part of rexcore's public interface,
+    # so their vendored SDK header roots must be explicit on this target.
+    target_include_directories(theft4_core_bridge PRIVATE
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-headers/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/vulkan-memory-allocator/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/volk"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-headers/include"
+        "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/spirv-tools/include")
     target_link_libraries(theft4_core_bridge PRIVATE theft4_game_code
         SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler
         xxHash::xxhash)
