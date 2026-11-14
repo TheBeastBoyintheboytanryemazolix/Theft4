@@ -1,3 +1,4 @@
+#include <rex/diagnostics/runtime_callers.h>
 #include <cstdint>
 #include <atomic>
 
@@ -115,6 +116,7 @@ extern "C" void sub_82145770(PPCContext& ctx, uint8_t* base) {
 }
 
 extern "C" void sub_821BB3D8(PPCContext& ctx, uint8_t* base) {
+  if(!rex::diagnostics::gta4_transition::IsEnabled()) {__imp__sub_821BB3D8(ctx,base);return;}
   const uint32_t requested_size = ctx.r3.u32;
   const uint32_t caller = static_cast<uint32_t>(ctx.lr);
   const uint32_t selector_before =
@@ -174,6 +176,7 @@ extern "C" void sub_821BB2D0(PPCContext& ctx, uint8_t* base) {
            access!=PageAccess::kExecuteReadOnly&&access!=PageAccess::kExecuteReadWrite)return {};
         return REX_LOAD_U32(address);
       });
+  if(!rex::diagnostics::gta4_transition::IsEnabled()) {__imp__sub_821BB2D0(ctx,base);return;}
   const uint32_t caller = static_cast<uint32_t>(ctx.lr);
   const uint32_t argument3 = ctx.r3.u32;
   const uint32_t argument4 = ctx.r4.u32;
@@ -236,4 +239,22 @@ extern "C" void sub_82526578(PPCContext& ctx,uint8_t* base) {
 extern "C" void sub_82526058(PPCContext& ctx,uint8_t* base) {
   rex::audio::handoff::Span span("cutscene-stop",0x82526058,ctx.r3.u32,ctx.r4.u32);
   __imp__sub_82526058(ctx,base);
+}
+
+// Preserve the generated implementation; capture the incoming guest return PC.
+extern "C" void sub_82849910(PPCContext& ctx, uint8_t* base) {
+  rex::diagnostics::callers::Span sample(rex::diagnostics::callers::GuestZeroRetry, uint32_t(ctx.lr));
+  __imp__sub_82849910(ctx, base);
+}
+
+// Preserve the generated implementation; capture the incoming guest return PC.
+extern "C" void sub_82A1A200(PPCContext& ctx, uint8_t* base) {
+  rex::diagnostics::callers::Span sample(rex::diagnostics::callers::GuestDelayWrapper, uint32_t(ctx.lr));
+  __imp__sub_82A1A200(ctx, base);
+}
+
+// Preserve the generated implementation; capture the incoming guest return PC.
+extern "C" void sub_82193D80(PPCContext& ctx, uint8_t* base) {
+  rex::diagnostics::callers::Span sample(rex::diagnostics::callers::GuestFencePoll, uint32_t(ctx.lr));
+  __imp__sub_82193D80(ctx, base);
 }
