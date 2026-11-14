@@ -1680,7 +1680,7 @@ class Gta4NativeGraphicsSystem final : public system::IGraphicsSystem {
   NativeWorkerBatch<NativeQueuedCommand, kRenderWorkerBatchCommands> worker_batch_;
 #else
   static constexpr size_t kRenderWorkerBatchCommands = 64;
-  std::deque<NativeCommand> worker_batch_;
+  NativeWorkerBatch<NativeCommand, kRenderWorkerBatchCommands> worker_batch_;
 #endif
   NativeTextureProtectionIndex worker_batch_texture_protection_;
 #ifdef THEFT4_LAB_BUILD
