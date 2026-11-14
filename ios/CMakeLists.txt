@@ -270,6 +270,11 @@ if(THEFT4_ENABLE_GAME_STARTUP)
                 bridge/theft4_render_plan_source.cpp)
         endif()
         if(THEFT4_DIRECT_METAL_BACKEND)
+            # The Direct Metal app has no Vulkan runtime. Keep the legacy
+            # Vulkan compatibility objects linkable without pulling in
+            # MoltenVK; its loader stub fails closed if Vulkan is requested.
+            target_sources(theft4_core_bridge PRIVATE
+                bridge/theft4_vulkan_loader_stub.cpp)
             target_sources(theft4_gta4_native_compile PRIVATE
                 bridge/theft4_frame_plan.cpp
                 bridge/theft4_postfx_plan.cpp
