@@ -1,0 +1,17 @@
+# Build 94: consolidated performance defaults
+
+> **Historical build-94 integration record.** Theft4 0.3 now selects the direct
+> Metal renderer. See [current release notes](RELEASE_0.3.md),
+> [architecture](THEFT4_0.3_ARCHITECTURE.md) and [build instructions](IOS_RELEASE_BUILD.md)
+> for active rendering and diagnostic policy. The settings below describe the
+> earlier working Vulkan renderer and the inherited texture-preparation flow.
+
+The main branch integrates the build-93 renderer/runtime history. The device configuration was read from the M5 on 2026-10-02. Renderer efficiency, parallel render preparation, graphics preparation, fused SMAA, hardware SMAA filtering, frame resource sharing, frame assembly, command stream, utility CPU cleanup, memory-pressure recovery, parallel texture conversion, render-target reuse, frame scheduling and direct guest clock are enabled automatically. Runtime Wait Improvements remains disabled. The obsolete display-aligned submission and old performance-comparison controls are absent from Settings.
+
+The app applies these launch policies directly from ios/bridge/theft4_performance_defaults.h. Persisted old experiment choices no longer override the consolidated configuration. Hardware capability checks and compatible-path fallbacks inside the renderer still apply. Normal graphics, display, touch-control and lightweight capture settings remain adjustable; save import/export on main is retained. The renderer/runtime integration deliberately selects build93 for overlapping old pacing/profiler changes instead of reviving previous experiments.
+
+Build94 also integrates the tested BC-to-ASTC preparation service and older-GPU compatibility fixes from `codex/astc-build93`. The main app checks actual BC texture support: unsupported GPUs prepare their static texture cache once, then reuse it. BC-capable GPUs skip preparation, runtime texture conversion, sampler compaction and compatibility presentation. They retain the consolidated build94 rendering policy. The separate `Theft4 ASTC` identity remains available only as an optional experiment build.
+
+BC-incompatible GPUs before Apple GPU family 10, with less than 7 GiB of physical memory, use the tested conservative one-frame configuration and disable speculative pipeline/content/draw reuse. BC-incompatible GPUs with at most 16 samplers also compact active samplers; the older-GPU SDR presentation uses a direct blit. These gates do not use age or memory alone. Runtime Wait Improvements remains Off for every device. Preparation notes, progress/ETA, pause/resume and confirmed cache deletion are documented in [TEXTURE_PREPARATION_INVENTORY.md](TEXTURE_PREPARATION_INVENTORY.md).
+
+This integration is not evidence that the lag-spike root cause is fixed. Build93 user feedback remains: possibly a little better, broadly similar. Signed build92/build93 artifacts remain rollback options. Build94 retains build93's renderer/runtime base plus the hardware-gated compatibility changes; modern-device gameplay performance still needs comparison on the final merged app.
