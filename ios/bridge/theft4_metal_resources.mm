@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <mach/mach.h>
+#include "libavcodec/texturedsp.h"
 #include "theft4_bounded_cache_sweep.h"
 
 namespace theft4::metal {
@@ -230,6 +231,101 @@ bool Validate(const Shape& s,std::span<const uint8_t> bytes,std::span<const Text
   }
   return true;
 }
+
+bool DecodeBCTexture(MTLPixelFormat format, TextureDSPContext& dsp,
+                     std::span<const uint8_t> source,
+                     std::span<const TextureUpload> source_uploads,
+                     std::vector<uint8_t>& decoded,
+                     std::vector<TextureUpload>& decoded_uploads,
+                     MTLPixelFormat& decoded_format, std::string& error) {
+  size_t block_bytes=0;
+  int (*decode_block)(uint8_t*,ptrdiff_t,const uint8_t*)=nullptr;
+  switch(format) {
+    case MTLPixelFormatBC1_RGBA:
+      block_bytes=8;decode_block=dsp.dxt1a_block;decoded_format=MTLPixelFormatRGBA8Unorm;break;
+    case MTLPixelFormatBC1_RGBA_sRGB:
+      block_bytes=8;decode_block=dsp.dxt1a_block;decoded_format=MTLPixelFormatRGBA8Unorm_sRGB;break;
+    case MTLPixelFormatBC2_RGBA:
+      block_bytes=16;decode_block=dsp.dxt3_block;decoded_format=MTLPixelFormatRGBA8Unorm;break;
+    case MTLPixelFormatBC2_RGBA_sRGB:
+      block_bytes=16;decode_block=dsp.dxt3_block;decoded_format=MTLPixelFormatRGBA8Unorm_sRGB;break;
+    case MTLPixelFormatBC3_RGBA:
+      block_bytes=16;decode_block=dsp.dxt5_block;decoded_format=MTLPixelFormatRGBA8Unorm;break;
+    case MTLPixelFormatBC3_RGBA_sRGB:
+      block_bytes=16;decode_block=dsp.dxt5_block;decoded_format=MTLPixelFormatRGBA8Unorm_sRGB;break;
+    default:
+      error="Unsupported BC texture format for CPU fallback";return false;
+  }
+  if(!decode_block){error="FFmpeg BC texture decoder initialization failed";return false;}
+  constexpr size_t kMaximumDecodedTextureBytes=64*1024*1024;
+  decoded.clear();decoded_uploads.clear();
+  decoded_uploads.reserve(source_uploads.size());
+  uint8_t decoded_block[4*4*4];
+  for(const auto& u:source_uploads) {
+    if(!u.width||!u.height||!u.depth||u.offset>source.size()||u.size>source.size()-u.offset) {
+      error="Invalid BC texture subresource bounds";return false;
+    }
+    const size_t blocks_x=(u.width+3)/4,blocks_y=(u.height+3)/4;
+    size_t minimum_source_row=0,minimum_source_image=0;
+    if(!Multiply(blocks_x,block_bytes,minimum_source_row)||
+       u.bytes_per_row<minimum_source_row||
+       u.bytes_per_row%block_bytes||
+       !Multiply(u.bytes_per_row,blocks_y,minimum_source_image)) {
+      error="Invalid BC texture row pitch";return false;
+    }
+    const size_t source_image_stride=u.bytes_per_image?u.bytes_per_image:minimum_source_image;
+    if(source_image_stride<minimum_source_image||
+       (u.depth>1&&(!u.bytes_per_image||u.bytes_per_image<minimum_source_image))) {
+      error="Invalid BC texture image pitch";return false;
+    }
+    size_t preceding_source_images=0,preceding_source_rows=0,required_source=0;
+    if(!Multiply(u.depth-1,source_image_stride,preceding_source_images)||
+       !Multiply(blocks_y-1,u.bytes_per_row,preceding_source_rows)||
+       preceding_source_images>std::numeric_limits<size_t>::max()-preceding_source_rows||
+       minimum_source_row>std::numeric_limits<size_t>::max()-preceding_source_images-preceding_source_rows) {
+      error="BC texture source size overflow";return false;
+    }
+    required_source=preceding_source_images+preceding_source_rows+minimum_source_row;
+    if(required_source>u.size){error="BC texture payload is truncated";return false;}
+
+    size_t decoded_row=0,decoded_image=0,decoded_size=0;
+    if(!Multiply(u.width,size_t(4),decoded_row)||
+       !Multiply(decoded_row,u.height,decoded_image)||
+       !Multiply(decoded_image,u.depth,decoded_size)||
+       decoded_size>kMaximumDecodedTextureBytes||
+       decoded.size()>kMaximumDecodedTextureBytes-decoded_size) {
+      error="Decoded BC texture exceeds the 64 MiB safety limit";return false;
+    }
+    TextureUpload out=u;
+    out.offset=decoded.size();out.size=decoded_size;
+    out.bytes_per_row=decoded_row;
+    out.bytes_per_image=u.depth>1?decoded_image:0;
+    decoded.resize(out.offset+out.size);
+    const uint8_t* input=source.data()+u.offset;
+    uint8_t* output=decoded.data()+out.offset;
+    for(size_t z=0;z<u.depth;++z) {
+      for(size_t by=0;by<blocks_y;++by) {
+        for(size_t bx=0;bx<blocks_x;++bx) {
+          const uint8_t* block=input+z*source_image_stride+by*u.bytes_per_row+bx*block_bytes;
+          if(decode_block(decoded_block,4*4,block)!=0) {
+            error="FFmpeg failed to decode a BC texture block";return false;
+          }
+          for(size_t py=0;py<4;++py) {
+            const size_t y=by*4+py;if(y>=u.height)break;
+            for(size_t px=0;px<4;++px) {
+              const size_t x=bx*4+px;if(x>=u.width)break;
+              const size_t src_pixel=(py*4+px)*4;
+              const size_t dst_pixel=(z*decoded_image+y*decoded_row+x*4);
+              std::memcpy(output+dst_pixel,decoded_block+src_pixel,4);
+            }
+          }
+        }
+      }
+    }
+    decoded_uploads.push_back(out);
+  }
+  error.clear();return true;
+}
 }
 struct ResourceCache::Impl {
   struct Allocation;
@@ -397,26 +493,57 @@ id<MTLTexture> ResourceCache::Texture(const ResourceVersion& version,MTLTextureD
   if (!version.owner || !version.generation || !descriptor || bytes.empty()) {
     error="Invalid immutable Metal texture generation";return nil;
   }
-  const Key key=Identity(version);const Shape shape=TextureShape(descriptor);
+  const Key key=Identity(version);
+  const Shape source_shape=TextureShape(descriptor);
   auto found=impl_->textures.find(key);
   if (found!=impl_->textures.end() && SameOwner(found->second.owner,version.owner)) {
     const auto& cached=found->second;
-    if (cached.shape!=shape || cached.size!=bytes.size() || cached.uploads.size()!=uploads.size() ||
+    if (cached.shape!=source_shape || cached.size!=bytes.size() || cached.uploads.size()!=uploads.size() ||
         !std::equal(uploads.begin(),uploads.end(),cached.uploads.begin())) {
       error="Metal texture generation changed its upload/format identity";return nil;
     }
     if(impl_->diagnostics)++impl_->stats.texture_hits;error.clear();return cached.texture;
   }
-  if (!Validate(shape,bytes,uploads,error))return nil;
-  auto texture=impl_->renderer.Texture(descriptor,error);if (!texture)return nil;
-  for (const auto& u:uploads) {
+  if(!Validate(source_shape,bytes,uploads,error))return nil;
+
+  MTLTextureDescriptor* upload_descriptor=descriptor;
+  std::vector<uint8_t> decoded_bytes;
+  std::vector<TextureUpload> decoded_uploads;
+  std::span<const uint8_t> upload_bytes=bytes;
+  std::span<const TextureUpload> upload_ranges=uploads;
+  const bool bc_format=
+      descriptor.pixelFormat==MTLPixelFormatBC1_RGBA ||
+      descriptor.pixelFormat==MTLPixelFormatBC1_RGBA_sRGB ||
+      descriptor.pixelFormat==MTLPixelFormatBC2_RGBA ||
+      descriptor.pixelFormat==MTLPixelFormatBC2_RGBA_sRGB ||
+      descriptor.pixelFormat==MTLPixelFormatBC3_RGBA ||
+      descriptor.pixelFormat==MTLPixelFormatBC3_RGBA_sRGB;
+  if(bc_format&&!impl_->renderer.Device().supportsBCTextureCompression) {
+    TextureDSPContext texture_dsp{};
+    ff_texturedsp_init(&texture_dsp);
+    MTLPixelFormat decoded_format=MTLPixelFormatInvalid;
+    if(!DecodeBCTexture(descriptor.pixelFormat,texture_dsp,bytes,uploads,
+                        decoded_bytes,decoded_uploads,decoded_format,error))return nil;
+    upload_descriptor=[descriptor copy];
+    if(!upload_descriptor){error="Metal BC fallback descriptor allocation failed";return nil;}
+    upload_descriptor.pixelFormat=decoded_format;
+    upload_bytes=decoded_bytes;
+    upload_ranges=decoded_uploads;
+  }
+
+  const Shape upload_shape=TextureShape(upload_descriptor);
+  if(!Validate(upload_shape,upload_bytes,upload_ranges,error))return nil;
+  auto texture=impl_->renderer.Texture(upload_descriptor,error);if(!texture)return nil;
+  for(const auto& u:upload_ranges) {
     [texture replaceRegion:MTLRegionMake3D(0,0,0,u.width,u.height,u.depth)
-        mipmapLevel:u.level slice:u.slice withBytes:bytes.data()+u.offset
+        mipmapLevel:u.level slice:u.slice withBytes:upload_bytes.data()+u.offset
         bytesPerRow:u.bytes_per_row bytesPerImage:u.bytes_per_image];
   }
-  impl_->textures.insert_or_assign(key,Impl::TextureEntry{version.owner,texture,shape,bytes.size(),
+  impl_->textures.insert_or_assign(key,Impl::TextureEntry{version.owner,texture,source_shape,bytes.size(),
       std::vector<TextureUpload>(uploads.begin(),uploads.end())});
-  if(impl_->diagnostics)++impl_->stats.texture_creates;if(impl_->diagnostics)impl_->stats.uploaded_bytes+=bytes.size();error.clear();return texture;
+  if(impl_->diagnostics)++impl_->stats.texture_creates;
+  if(impl_->diagnostics)impl_->stats.uploaded_bytes+=upload_bytes.size();
+  error.clear();return texture;
 }
 void ResourceCache::BeginUploadBatch(){
   for(size_t i=0;i<impl_->pages.size();++i) {
