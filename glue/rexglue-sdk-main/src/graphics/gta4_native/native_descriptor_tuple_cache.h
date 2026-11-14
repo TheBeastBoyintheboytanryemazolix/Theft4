@@ -27,7 +27,15 @@ template <typename Key, typename Bundle, typename Hash,
           typename Dependencies = NativeDescriptorNoDependencies>
 class NativeDescriptorTupleCache {
  public:
-  explicit NativeDescriptorTupleCache(size_t capacity) : capacity_(capacity) {}
+  explicit NativeDescriptorTupleCache(size_t capacity) : capacity_(capacity) {
+    // This cache is bounded by capacity_. Reserve its steady-state containers
+    // up front so descriptor-cache warm-up and frame retirement do not trigger
+    // repeated hash-table rehashes or vector growth on the render path.
+    entries_.reserve(capacity_);
+    dependency_keys_.reserve(capacity_);
+    reusable_.reserve(capacity_);
+    retired_.reserve(capacity_);
+  }
   // The reverse index refers to unordered_map keys, whose addresses survive
   // rehash and container moves. Copying would leave pointers into another cache.
   NativeDescriptorTupleCache(const NativeDescriptorTupleCache&) = delete;
