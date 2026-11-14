@@ -47,13 +47,6 @@ jobs:
       - name: Prepare pinned dependencies
         run: python3 tools/setup_repo.py
 
-      - name: Build vendored MoltenVK iOS archives
-        run: |
-          set -euo pipefail
-          cd thirdparty/MoltenVK/MoltenVK
-          ./fetchDependencies --ios
-          make ios
-
       - name: Build Direct Metal shader exporters
         run: |
           set -euo pipefail
@@ -85,7 +78,6 @@ jobs:
       - name: Build and package Direct Metal IPA
         env:
           THEFT4_METAL_LIBRARIES: ${{ github.workspace }}/out/direct-metal/ios
-          THEFT4_MOLTENVK_IOS_LIB_DIR: ${{ github.workspace }}/thirdparty/MoltenVK/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64
           THEFT4_BUILD_JOBS: '3'
         run: tools/build_ios_release.sh 0.3.1
 
