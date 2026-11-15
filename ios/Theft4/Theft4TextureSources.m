@@ -6,7 +6,15 @@ static NSString *const Theft4TextureInventoryErrorDomain = @"Theft4TextureInvent
 
 BOOL Theft4DeviceNeedsBCTexturePreparation(void) {
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    // If capability detection is unavailable, favor the compatibility path.
+    // Emil's BC1/BC2/BC3 CPU-to-RGBA8 fallback remains the A16 path. Do not
+    // make A16 users wait through the optional whole-library ASTC preparation;
+    // the fallback decodes each texture as it is uploaded instead.
+    NSString *gpuName = device.name ?: @"";
+    if ([gpuName localizedCaseInsensitiveContainsString:@"A16"]) return NO;
+
+    // GPUs with native BC support (including supported M-series iPads) also
+    // skip the one-time ASTC conversion. If capability detection is
+    // unavailable, favor the compatibility path on other devices.
     return theft4_bc_needs_preparation(device &&
            [device respondsToSelector:@selector(supportsBCTextureCompression)] &&
            device.supportsBCTextureCompression);
