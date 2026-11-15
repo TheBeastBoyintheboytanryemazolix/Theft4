@@ -493,9 +493,17 @@ template<bool Diagnostics> Receipt FrameAdapter::SubmitFrameImpl(const std::shar
     }
     if(!frame.EndPass(error))return {};
   }
+  // A single guest draw or optional host utility can be unsupported by the
+  // current Metal pipeline (for example, a shader variant that cannot be
+  // materialized). Do not discard every otherwise-valid pass in the frame:
+  // keep the successfully encoded work and present it. Structural frame,
+  // attachment, copy, encoder and drawable failures above still fail closed.
+  // This is especially important on older Apple GPUs, where one unsupported
+  // draw must not turn the whole title into a permanently black display.
   if(preparation_errors) {
-    error=first_preparation_error+" ("+std::to_string(preparation_errors)+" draw preparations failed; frame not submitted)";
-    return {};
+    std::fprintf(stderr,
+        "gta4-metal-frame: skipped %zu draw preparation(s); presenting remaining encoded work; first error: %s\n",
+        preparation_errors,first_preparation_error.c_str());
   }
   if(drawable&&!frame.Present(drawable,error))return {};
   auto receipt=frame.Submit(error);if(!receipt)return {};
