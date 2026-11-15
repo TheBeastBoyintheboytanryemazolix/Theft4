@@ -78,6 +78,12 @@ REXCVAR_DEFINE_BOOL(
     "Restrict deferred dynamic guest render passes to the union of draw scissors")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+// These CVARs are defined in vulkan_device.cpp / render_target_cache.cpp
+// and read by this translation unit. Declare their generated storage accessors.
+REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);
+REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);
+REXCVAR_DECLARE(bool, vulkan_transfer_in_draw_pass);
+
 REXCVAR_DECLARE(bool, native_renderer_oracle_capture);
 
 namespace rex::graphics::vulkan {
