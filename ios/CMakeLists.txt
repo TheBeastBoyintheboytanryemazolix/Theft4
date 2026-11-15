@@ -234,6 +234,11 @@ if(THEFT4_ENABLE_GAME_STARTUP)
                 bridge/theft4_render_plan_source.cpp)
         endif()
         if(THEFT4_DIRECT_METAL_BACKEND)
+            # The renderer factory and startup selector live in theft4_core_bridge,
+            # not in theft4_gta4_native_compile. Export the selection macro there
+            # too so the app actually compiles and calls the direct Metal factory.
+            target_compile_definitions(theft4_core_bridge PRIVATE
+                THEFT4_DIRECT_METAL_BACKEND=1)
             # The Direct Metal app has no Vulkan runtime. Keep the legacy
             # Vulkan compatibility objects linkable without pulling in
             # MoltenVK; its loader stub fails closed if Vulkan is requested.
