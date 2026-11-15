@@ -51,6 +51,10 @@ REXCVAR_DEFINE_BOOL(
     "Encode compatible render-target ownership transfers in the following "
     "guest draw pass (experimental on tile-based GPUs)");
 
+// This CVAR is defined in command_processor.cpp and also read in this
+// translation unit; declare its generated storage accessor here.
+REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);
+
 // DEFINE_string(
 //     render_target_path_vulkan, "",
 //     "Render target emulation path to use on Vulkan.\n"
