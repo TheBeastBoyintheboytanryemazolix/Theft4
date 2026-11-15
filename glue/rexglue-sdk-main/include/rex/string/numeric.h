@@ -12,7 +12,6 @@
 
 #include <charconv>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -134,23 +133,6 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     }
     std::memcpy(&result, &pun, sizeof(PUN));
   } else {
-#if defined(__APPLE__)
-    // Apple libc++ only exposes floating-point from_chars at iOS 26.0.
-    // Theft4 still supports older iOS deployment targets, so use the C
-    // floating parser on Apple platforms while keeping from_chars elsewhere.
-    std::string text(range);
-    char* parsed_end = nullptr;
-    errno = 0;
-    if constexpr (std::is_same_v<T, float>) {
-      result = std::strtof(text.c_str(), &parsed_end);
-    } else {
-      result = std::strtod(text.c_str(), &parsed_end);
-    }
-    if (errno != 0 || parsed_end == text.c_str()) {
-      assert_always();
-      return T();
-    }
-#else
     auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result,
                                       std::chars_format::general);
     // TODO(gibbed): do something more with errors?
@@ -158,7 +140,6 @@ inline T fpfs(const std::string_view value, bool force_hex) {
       assert_always();
       return T();
     }
-#endif
     if (is_negative) {
       result = -result;
     }
@@ -272,18 +253,12 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
         assert_always();
         return vec128_t();
       }
-      // Apple libc++ only exposes floating-point from_chars at iOS 26.0.
-      // Parse the bounded range with the C parser so older iOS deployment
-      // targets remain supported.
-      std::string text(p, end);
-      char* parsed_end = nullptr;
-      errno = 0;
-      v.f32[i] = std::strtof(text.c_str(), &parsed_end);
-      if (errno != 0 || parsed_end == text.c_str()) {
+      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
+      if (result.ec != std::errc()) {
         assert_always();
         return vec128_t();
       }
-      p += static_cast<size_t>(parsed_end - text.c_str());
+      p = result.ptr;
     }
   }
   return v;

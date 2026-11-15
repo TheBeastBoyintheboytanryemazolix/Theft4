@@ -25,7 +25,6 @@
 #import "Theft4CPUUsageView.h"
 extern int rex_gta4_native_profile_start(void);
 extern int rex_gta4_native_profile_status(void);
-extern size_t theft4_metal_diagnostics_drain(char *output, size_t capacity);
 #import "Theft4TouchControls.h"
 #import "Theft4LauncherView.h"
 #ifdef THEFT4_TEXTURE_PREPARATION_PREVIEW
@@ -2358,6 +2357,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 #endif
 #ifdef THEFT4_BC_TEXTURE_COMPATIBILITY
         success = success && Theft4AppendDiagnosticFile(stream,
+            [supportURL URLByAppendingPathComponent:@"texture-preparation/scan-summary.json"],
+            @"Theft4/texture-preparation/scan-summary.json", &budget, included, skipped);
+        success = success && Theft4AppendDiagnosticFile(stream,
             [supportURL URLByAppendingPathComponent:@"texture-preparation/observed-textures.jsonl"],
             @"Theft4/texture-preparation/observed-textures.jsonl", &budget, included, skipped);
         success = success && Theft4AppendDiagnosticFile(stream,
@@ -2738,24 +2740,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 // sampled wall time (including descheduling), not CPU time or a full stack trace.
 - (void)collectRuntimeCallers {
     [self collectFrameScheduling];
-    // Drain bounded Direct Metal rejection records into the same publication-trace
-    // CSV exported by Download Latest Log Capture. This runs on the capture queue.
-    char metalRows[8192];
-    const size_t metalBytes=theft4_metal_diagnostics_drain(metalRows,sizeof(metalRows)-1);
-    if(metalBytes) {
-        metalRows[metalBytes]='\0';
-        NSString *rows=[[NSString alloc] initWithBytes:metalRows length:metalBytes encoding:NSUTF8StringEncoding];
-        if(rows.length) {
-            NSMutableString *csv=[NSMutableString new];
-            for(NSString *line in [rows componentsSeparatedByString:@"\n"]) {
-                if(!line.length)continue;
-                NSString *escaped=[line stringByReplacingOccurrencesOfString:@"\"" withString:@"\"\""];
-                [csv appendFormat:@"metal_rejection,,%llu,,\"%@\"\n",
-                    (unsigned long long)(CACurrentMediaTime()*1e9),escaped];
-            }
-            if(csv.length)[self appendPublicationCaptureText:csv];
-        }
-    }
     if (_runtimeCallerFull || !_runtimeCallerRows) return;
     const uint64_t now = (uint64_t)(CACurrentMediaTime() * 1e9);
     const uint64_t frame = theft4_frame_counter_published_frames();
@@ -3109,7 +3093,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         setenv("THEFT4_REFLECTION_RESOLUTION",
             reflectionPresets[_reflectionQuality.selectedSegmentIndex], 1);
         setenv("THEFT4_ANTI_ALIASING", antiAliasingPresets[_antiAliasing.selectedSegmentIndex], 1);
-        setenv("THEFT4_FSR_UPSCALING", _bringupOverlay.fsrUpscaling.on ? "1" : "0", 1);
         NSString *sharpening = [NSString stringWithFormat:@"%ld", (long)lroundf(_bringupOverlay.sharpening.value)];
         setenv("THEFT4_SHARPENING", sharpening.UTF8String, 1);
         if (!theft4_retail_mode()) [self record:[NSString stringWithFormat:

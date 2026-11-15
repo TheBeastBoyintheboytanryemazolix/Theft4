@@ -4,6 +4,9 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+extern "C" {
+#include <rijndael-alg-fst.h>
+}
 
 namespace {
 using Bytes = std::vector<uint8_t>;
@@ -16,6 +19,16 @@ void Put16(Bytes& b, size_t p, uint16_t v, bool be = false) {
 }
 void Write(const std::filesystem::path& p, const Bytes& bytes) {
   std::ofstream file(p, std::ios::binary); file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+void Encrypt(Bytes& bytes, size_t offset, size_t count, const Bytes& key) {
+  std::array<u32, 4 * (MAXNR + 1)> keys{};
+  const int rounds = rijndaelKeySetupEnc(keys.data(), key.data(), 256);
+  std::array<uint8_t, 16> block{};
+  for (int pass = 0; pass < 16; ++pass)
+    for (size_t p = offset; p + 16 <= offset + count; p += 16) {
+      rijndaelEncrypt(keys.data(), rounds, bytes.data() + p, block.data());
+      std::memcpy(bytes.data() + p, block.data(), 16);
+    }
 }
 Bytes Fixture() {
   Bytes resource(32768);
@@ -75,6 +88,9 @@ int main() {
   }, {}, cancel, manifest, error), "Manifest scan failed");
   Check(visits == 1 && manifest["uniqueTextures"] == 1 && manifest["textures"].size() == 2 &&
         manifest["warnings"].empty(), "IMG parsing or duplicate detection failed");
+  Check(CanReuseTextureManifest(manifest, TextureSourceFingerprint(root)),
+        "Successful manifest was not reusable");
+  Check(TextureScanSummary(manifest)["error"] == "", "Successful scan reported an error");
   visits = 0;
   Check(VisitManifestTextures(root, manifest, [&](const auto&, const auto&) { ++visits; return true; },
         {}, cancel, error) && visits == 1, "Manifest revisit failed");
@@ -89,5 +105,57 @@ int main() {
         {}, cancel, error), "Changed source accepted");
   Check(ScanTextureManifest(root, root / "missing-key", {}, {}, cancel, manifest, error) &&
         !manifest["warnings"].empty(), "Malformed archive not reported");
+
+  // Reproduce the installation-repair failure with an encrypted-only source.
+  // The first scan succeeds structurally with zero textures and a warning;
+  // fixing only the key must invalidate its cached identity and find textures.
+  const auto encrypted_root = root / "encrypted";
+  fs::create_directories(encrypted_root);
+  Bytes key(32); for (size_t i = 0; i < key.size(); ++i) key[i] = uint8_t(i);
+  img.assign(2048 + allocated, 0);
+  Put32(img, 0, 0xA94E2A52); Put32(img, 4, 3); Put32(img, 8, 1);
+  Put32(img, 12, 28); Put16(img, 16, 16);
+  Put32(img, 20, 0xC0000000); Put32(img, 24, 7); Put32(img, 28, 1);
+  Put16(img, 32, allocated / 2048); Put16(img, 34, allocated - file.size());
+  std::memcpy(img.data() + 36, "fixture.xtd", 12);
+  std::memcpy(img.data() + 2048, file.data(), file.size());
+  Encrypt(img, 0, 20, key); Encrypt(img, 20, 28, key);
+  Write(encrypted_root / "fixture.img", img);
+  const auto missing_fingerprint = TextureSourceFingerprint(encrypted_root);
+  Check(ScanTextureManifest(encrypted_root, encrypted_root / "aes_key.bin", {}, {}, cancel,
+                            manifest, error), "Missing-key scan unexpectedly aborted");
+  Check(manifest["uniqueTextures"] == 0 && manifest["resourcesRead"] == 0 &&
+        !CanReuseTextureManifest(manifest, missing_fingerprint), "Empty scan was reusable");
+  auto summary = TextureScanSummary(manifest);
+  Check(summary["warningCount"] == 1 && summary["error"].get<std::string>().find(
+        "Archive AES key is unavailable") != std::string::npos,
+        "Empty scan hid the actual decryption error");
+  Write(encrypted_root / "aes_key.bin", key);
+  const auto repaired_fingerprint = TextureSourceFingerprint(encrypted_root);
+  Check(repaired_fingerprint != missing_fingerprint, "Restored key did not invalidate fingerprint");
+  Check(ScanTextureManifest(encrypted_root, encrypted_root / "aes_key.bin", {}, {}, cancel,
+                            manifest, error) && manifest["uniqueTextures"] == 1 &&
+        manifest["warnings"].empty(), "Repaired encrypted archive did not yield BC textures");
+  Check(CanReuseTextureManifest(manifest, repaired_fingerprint), "Repaired scan was not reusable");
+  const auto key_time = fs::last_write_time(encrypted_root / "aes_key.bin");
+  key[0] ^= 1; Write(encrypted_root / "aes_key.bin", key);
+  fs::last_write_time(encrypted_root / "aes_key.bin", key_time);
+  Check(TextureSourceFingerprint(encrypted_root) != repaired_fingerprint &&
+        !CanReuseTextureManifest(manifest, TextureSourceFingerprint(encrypted_root)),
+        "Same-size, same-timestamp key replacement was ignored");
+  auto old_manifest = manifest; old_manifest["sourceFingerprint"]["schema"] = 1;
+  Check(!CanReuseTextureManifest(old_manifest, repaired_fingerprint), "Legacy fingerprint was reused");
+  Check(!CanReuseTextureManifest(nlohmann::json::object(), repaired_fingerprint),
+        "Incomplete manifest was reused");
+  const auto empty_root = root / "empty"; fs::create_directories(empty_root);
+  Check(ScanTextureManifest(empty_root, empty_root / "aes_key.bin", {}, {}, cancel,
+                            manifest, error), "Empty folder scan failed");
+  summary = TextureScanSummary(manifest);
+  Check(summary["sourceFiles"] == 0 && summary["error"].get<std::string>().find(
+        "selected game folder") != std::string::npos, "Empty folder advice missing");
+  for (size_t i = 0; i < 20; ++i)
+    manifest["warnings"].push_back({{"container", "bad.img"}, {"error", "Unsupported IMG archive."}});
+  Check(TextureScanSummary(manifest)["warningSamples"].size() == 8,
+        "Diagnostic warning sample is not bounded");
   fs::remove_all(root); std::cout << "Texture manifest, bounds, resume and source identity: PASS\n";
 }

@@ -17,9 +17,9 @@
 **SUBMIT your custom device log here: [Theft4 Tester Log & Bug Submission](https://docs.google.com/forms/d/e/1FAIpQLScZNq2hjni8wgChCYl1oaRdJU0XPsVLFWwmVtqYxnIQ708t7A/viewform?usp=publish-editor)**
 
 Help improve Theft4 on your device: capture a slow or problematic scene with the
-built-in **short performance capture**, export the saved log, and upload it with
+built-in **Long Performance Capture**, export the saved log, and upload it with
 your survey answers and screenshots. Smooth runs are useful comparisons too.
-**[Follow the capture, export, and submission instructions below.](#capture-and-submit-a-short-performance-log)**
+**[Follow the capture, export, and submission instructions below.](#capture-and-submit-a-performance-log)**
 
 # Theft4
 
@@ -29,123 +29,138 @@ original PowerPC game instructions are translated to C++ ahead of time and
 compiled into the signed application. Theft4 does not generate or download CPU
 code at runtime and does not require a JIT entitlement.
 
-This is not a source port and it is not a complete Xbox 360 emulator. It combines
-ahead-of-time translated game code with a compatibility runtime that recreates
-the Xbox services the title expects. The 0.2.1 iOS release promotes the latest
-native-renderer, launcher, save-transfer, and diagnostic work into the official
-app. It presents through Vulkan, MoltenVK and Metal. The official app and
-TestFlight build use `com.lukebrosious.theft4`.
+This is an ahead-of-time game recompilation with a compatibility runtime, not a
+PC source port or a complete Xbox 360 emulator. **Theft4 0.3** prepares the running
+game's frames directly for Metal, including native passes, game-shader bindings,
+lighting, reflections, effects and presentation. The game continues to use
+LibertyRecomp/ReXGlue's generated-code and runtime foundation. The official app
+identity remains `com.lukebrosious.theft4`.
 
-> [!WARNING]
-> Theft4 0.2.1 remains experimental. Dense scenes, extended play, physics,
-> heat and device compatibility still need testing. The GitHub IPA is an
-> unsigned sideload package; TestFlight uses a separately signed build.
+> [!NOTE]
+> **0.3.2 is available:** [download the unsigned iOS IPA](https://github.com/KoreanSeats1/Theft4/releases/tag/v0.3.2).
+> Update in place using your sideloading tool. TestFlight publication is separate.
+> M5 testing reports excellent visuals and a major native-resolution performance
+> improvement, with a remaining spike that recovers. The tested native run used
+> 2416 × 1359 without upscaling. Locked 30 FPS across every scene/device is not
+> established.
 
-## What changed in 0.2.1
+## Get Theft4 running on your iPhone or iPad
 
-This important update adds safer device-specific graphics limits, save backup
-and restore, a redesigned launcher, and substantially better performance
-evidence collection. It also includes renderer work that reduces redundant CPU,
-GPU, pipeline, buffer, constant, and synchronization overhead without lowering
-the default image quality on newer devices. See the
-[complete 0.2.1 release notes](docs/RELEASE_0.2.1.md).
+Start with the [installation guide](docs/IOS_SIDELOAD_INSTALL.md). Want Codex or
+Claude to help with setup? **[Copy the complete setup prompt](docs/IOS_SIDELOAD_INSTALL.md#copy-and-paste-setup-prompt-for-codex-or-claude)**
+into a session that can access your computer's files and tools. It walks the
+assistant through the official release, signing, exact game/TU8 validation,
+file transfer, one-time texture preparation where required, and a gameplay check.
+A chat-only assistant can guide the manual steps; Apple sign-in and device
+actions may still require you. You supply your own supported game files.
 
-| Area | Substantial change | Effect |
-| --- | --- | --- |
-| Command delivery | Batched producer-to-worker transfer, tighter queue locks, bounded storage reuse and compact state packets instead of full draw packets for common state changes | Less allocation, copying and lock waiting under dense command loads. |
-| Redundant state | Skip identical binding notifications and repeated vertex/index binds after validating resource identity; reuse immutable vertex-layout requirements | Avoid work that leaves GPU state unchanged while retaining draw order and resource ownership. |
-| Shader constants | Reuse validated parent snapshots and apply only changed ranges into fenced frame allocations | Avoid whole-block materialization and byte conversion for small updates. |
-| Textures | Separate texture content identity from sampling state; cache verified generations and limit A19 stage walks to shader-used slots | Reduce decode, hashing, upload planning and unused-stage traversal while still validating dirty resources. |
-| Pipelines and worker | Bound A19 prewarming, defer draws whose new pipeline is compiling, and record worker phases and queue pressure | Reduce avoidable stalls and make remaining hitches diagnosable. Newly visited areas still need visual checks. |
-| Frame lifetime | Two completion-owned native frame slots and bounded resource retirement | Preserve CPU/GPU overlap while protecting in-flight buffers and textures. |
-| Device safety | iPhones and iPads with less than 7 GiB of usable memory are capped at 900p + FSR and conservative pressure-heavy settings; lower 540p/720p choices remain available | Reduce rendering and memory pressure on 6 GB and older devices while leaving newer devices unchanged. |
-| Graphics and launcher | Stable centered 16:9 gameplay, plus Native Pixels and 540p/720p/900p/1080p, independent FSR, and expanded quality controls | Avoid the world, shadow and HUD distortion found in the withdrawn device-aspect experiment while keeping quality/performance choices explicit. |
-| Saves | Validated export and import with an automatic pre-import backup | Move or protect saves without copying the whole app container. |
-| Output and power controls | Independent resolution/FSR choices, fixed output policy where appropriate, Game Mode declaration, and conservative defaults for limited-memory profiles | Let testers tune quality against sustained speed, heat, and memory pressure. |
-| Diagnosis | Frame-time graph, lightweight long trace, 120-sample detailed GPU/CPU capture spread across about 360 submitted frames, resource inventory checkpoints, and Files export | Produce more concrete pipeline, buffer, GPU-pass, CPU-stage, queue, memory, and thermal evidence with lower capture overhead. |
+## What changed in 0.3.2
 
-One useful instrumented comparison is the M5 iPad build 32 to 33 command
-transfer change at 900p. Mean renderer interval fell from 40.57 to 37.84 ms,
-p95 from 47.58 to 45.58 ms, and intervals over 40 ms from 357/599 to 182/599.
-Mean batch-transfer time fell from 4.53 to 0.16 ms and queue-lock wait from
-7.40 to 1.54 ms. The routes and GPU work differed, so the whole-frame numbers
-are directional rather than a controlled speedup. The targeted transfer and
-lock spans show the clearest improvement. See the
-[build 33 review](docs/lab-experiments/build33-device-review.md).
+A potential fix for older-device BC texture preparation rescans empty results,
+invalidates the scan when the archive key changes, and includes the underlying
+scan warnings in errors and exported diagnostics. Older phones are untested for
+this patch; YMMV. Reports need logs, device/app versions and the exact game/TU8
+information: “it doesn't work” alone cannot be investigated.
 
-Later heavy scenes still miss the 33.3 ms target. An A19 iPhone Air capture in
-serious thermal state had a 44.5 ms median renderer interval versus 33.2 ms
-in a different, mostly nominal run. The scenes and output sizes differed as
-well. We cannot yet claim a measured temperature reduction or locked 30 FPS.
-Lower resolution reduces planned pixel work, while the CPU changes reduce
-measured command overhead. Same-route, same-settings play after warmup is needed
-to measure sustained frame times, comfort and battery use. See the
-[A19 capture review](docs/lab-experiments/build40-a19-air-two-capture-review.md)
-and [0.2.1 release notes](docs/RELEASE_0.2.1.md).
+Use Xbox 360 GTA IV **USA retail**, title `545407F2`, media `6AC07221`, base
+`0.0.0.5`, with matching **TU8** to `0.0.8.5`. The exact patch SHA-256,
+retry instructions and reporting requirements are in the
+[0.3.2 release notes](docs/RELEASE_0.3.2.md).
 
-### Capture and submit a short performance log
+## What changed in 0.3.1
 
-#### Which file do we need?
+The performance follow-up reduces cold geometry conversion, upload and driver
+allocation overhead, repeated draw preparation, frame bookkeeping and CPU wait
+busy polling. Bounded caches retain useful warm entries instead of clearing
+whole working sets. These changes retain the direct Metal renderer and original
+icon; they do not establish locked 30 FPS on every device.
 
-Upload the **`Theft4-Performance-Capture-<date-and-time>.txt`** file created by
-**System → Download Latest Log Capture** after a short capture has finished.
-This is Theft4's own diagnostic export—not an Apple crash report, a save export,
-or just a screenshot of the graph. **The game does not need to crash.**
+The optional **Mods** tab adds Native Aspect Ratio, SBerrix's Custom Time Cycle,
+God Mode and Unlimited Ammo. Native Aspect Ratio expands the scene to the
+launch window with matching camera/lighting reconstruction and proportional
+interface corrections. More visible scenery can cost additional frame time.
+The one-time ASTC preparation flow remains capability-gated for GPUs without
+BC texture support, and existing prepared caches are retained on app updates.
 
-The short capture records **120 detailed samples across roughly 360 submitted
-frames**, including renderer CPU/GPU timing and counters. Expensive resource and
-process-memory inventories are sampled at capture start and then periodically,
-not every frame. The exported text bundle includes available profile data,
-runtime/lifecycle logs, the aligned lightweight frame-stage trace, and app/device
-information. Upload the whole `.txt` file; you do not need to extract individual
-CSV or JSON sections.
+Read the [0.3.1 release notes](docs/RELEASE_0.3.1.md) and the
+[detailed implementation and validation record](docs/IOS_MODS.md).
 
-#### 1. Enable the graph, then reproduce the issue
+## What changed in 0.3
 
-1. In the Theft4 launcher, open **Interface** and enable **Frame-Time Graph**.
-   Enable **Frame Counter** too, so screenshots include FPS.
-2. Note your graphics settings, then press **Play**. Reach the scene you want to
-   test before starting the capture: a busy intersection, city overview, driving,
-   turning a corner, stutter, or a visual problem. A smooth scene is also useful
-   as a baseline.
-3. **Double-tap the frame-time graph** to begin the short detailed capture.
-   On current builds, this gesture works directly; no System capture switch is
-   required. If an older build has a **Detailed performance capture** switch,
-   enable that before starting the game, then use the same double-tap gesture.
-4. Keep playing the same route or hold the same camera view while it records.
-   The graph shows **REC**, then **SAVED** when the profile finishes. At 30 FPS,
-   the capture usually takes roughly **12 seconds at 30 FPS**; allow more time
-   at lower FPS.
-   **Wait for SAVED before closing the app.** If it shows **ERR**, mention that
-   in your report; do not describe it as a completed capture.
+The live direct Metal renderer replaces the previous Vulkan → MoltenVK route for
+normal Metal gameplay. Substantial follow-up work rebuilt frame ownership,
+geometry conversion, constant preparation, uploads, caches and native draw
+encoding. This is the full game renderer, not just the separate Metal Lab.
 
-Capture **while the problem is happening**, not only after it has recovered.
-If the issue appears only after the device warms up, reproduce that and report
-how many minutes you had been playing. For streaming or first-visit stutters,
-start just before entering the affected area and say whether you had visited
-it earlier in the session. Avoid changing graphics settings during a comparison.
+| Area | Change |
+| --- | --- |
+| Native graphics | Ordered Metal passes, game shaders, depth/lighting aliases, reflections, host effects and direct drawable presentation. |
+| Frame time | Streamed draw encoding, redundant-binding avoidance, shared constants, incremental registry maintenance and completion-owned storage reuse. |
+| Geometry | Exact reusable conversion recipes, shared vertex/index allocations, large upload-view reuse and bounded index-range eviction without clearing every mesh. |
+| Visual controls | Adjustable sharpening, corrected AA-Off startup, existing resolution/FSR choices, resident LOD and explicit draw-distance profiles. Native Pixels uses a centered 16:9 physical-pixel target. |
+| Everyday use | Default-on intro skipping, development telemetry disabled for normal play, optional graphs and bounded captures, preserved saves/settings and Game Mode metadata. |
+| Older GPUs | Capability-gated one-time BC-to-ASTC preparation with progress, estimate, resume, cache reuse and confirmed deletion. BC-capable GPUs skip this sweep. |
+| Future ports | A source-backed record of the rewritten boundaries, prior costs, fidelity contracts, measurements and title-specific assumptions. |
 
-> Profiling itself adds overhead. Describe how the game felt **before** recording
-> as well as during it. Repeat the same scene without recording when judging
-> normal performance; a captured FPS reading alone is not a clean benchmark.
+Read the [complete 0.3 release notes](docs/RELEASE_0.3.md),
+[architecture and recompilation lessons](docs/THEFT4_0.3_ARCHITECTURE.md), and
+[main integration status](docs/THEFT4_0.3_MAIN_INTEGRATION.md).
+The [0.2.1 notes](docs/RELEASE_0.2.1.md) remain the historical public-release record.
+Legacy Vulkan code/build dependencies and game compatibility services are retained;
+direct Metal does not mean every subsystem has been rewritten from source.
 
-#### 2. Save the log to Files
+<a id="capture-and-submit-a-short-performance-log"></a>
 
-1. Once the graph says **SAVED**, take any useful screenshots. Save your game
-   normally if needed—the performance capture does **not** save game progress.
-2. Close Theft4 from the app switcher and reopen it to the launcher.
-3. Open **System → Download Latest Log Capture**. This packages the saved
-   diagnostics; it does not start a new recording.
-4. The dated `.txt` is saved automatically under
+### Capture and submit a performance log
+
+0.3 uses optimized normal play automatically, with no Retail Mode toggle.
+Development logging and probes stay disabled. Optional graphs and Long
+Performance Capture are separate choices; recording does not require a crash.
+
+#### 1. Enable capture before Play, then reproduce the issue
+
+1. Open **System → Long Performance Capture** in the launcher and enable it.
+   This choice resets Off every time the app opens. It records bounded timings
+   for up to five minutes, even when every overlay is hidden.
+2. Optionally open **Interface** and enable **Frame-Time Graph** and **Frame
+   Counter**. The graph can show recording status and offers capture actions.
+3. Note your graphics settings, press **Play**, then drive the route or reach the
+   scene you want to test. Record the issue while it happens: a first visit, a
+   heavy camera turn, a hitch or a focus transition. Smooth runs are useful too.
+4. With the graph enabled, **hold the frame-time graph** to mark a lag spike or
+   choose **Stop and save capture**. The recording indicator ends when stopped.
+   The capture also stops and saves when the app enters the background, or after
+   five minutes. Save your game separately; capture does not save game progress.
+
+The report includes publication intervals, renderer stage timing and bounded
+runtime/scheduling observations, along with available configuration and memory
+information. Detailed development counters may be absent or zero because the
+ordinary optimized policy remains active. Publication timestamps measure frames
+handed to the presenter; they are not physical display scanout timestamps.
+
+Capture adds measurement overhead. Describe gameplay before recording as well as
+during it, and use the same route/settings without recording when comparing
+normal performance. Note app switching, charging, Low Power Mode and how long
+the device had been running. Avoid changing graphics settings midway through a
+comparison.
+
+#### 2. Export the saved report to Files
+
+1. Stop and save using the graph, or background the app to save, before closing.
+   Reopen Theft4 to its launcher if necessary.
+2. Open **System → Download Latest Log Capture**. This exports existing data; it
+   does not start another recording.
+3. The dated **`Theft4-Performance-Capture-<date-and-time>.txt`** is saved under
    **Files → On My iPhone/iPad → Theft4 → Diagnostics**. The share sheet also
-   lets you choose **Save to Files** and copy it somewhere convenient, such as
-   iCloud Drive.
-5. Use the file with the export date/time for this test. Export **before starting
-   another game session**, so the runtime context still matches your capture.
+   lets you save elsewhere, including iCloud Drive.
+4. Upload the complete `.txt`; individual CSV/JSON sections do not need to be
+   extracted. Export before starting another test so the latest context matches
+   the run. If export reports a failure, retain the app data and report the error.
 
-There is one short profile per app launch. To record a second test, export the
-first, relaunch, and repeat. A successful export alone does not prove that a
-new short profile was recorded: wait for **SAVED** during the run first.
+One long capture is available per app launch. Export the first, reopen, and
+explicitly enable capture again for another run. Older releases and engineering
+launches also have a short detailed profiler; its double-tap workflow is not the
+normal 0.3 capture procedure.
 
 #### 3. Fill out the survey and attach the file
 
@@ -187,7 +202,7 @@ original `.txt` and report the exact error instead of substituting a screenshot
 of the log.
 
 <details>
-<summary>Screenshot guide: enable the graph and recognize a completed capture</summary>
+<summary>Screenshot guide: enable the graph; historical capture indicator</summary>
 
 ![Theft4 Interface page with Frame Counter and Frame-Time Graph enabled](docs/images/capture-interface.png)
 
@@ -196,10 +211,9 @@ launcher UI in an isolated simulator preview; no game data is loaded.*
 
 ![Theft4 gameplay screenshot with FPS and the green SAVED indicator on the frame-time graph](docs/images/capture-saved-gameplay.png)
 
-*Example gameplay capture: look for SAVED on the graph in the top-right before
-quitting to export. Double-tap that graph while the scene you want to diagnose
-is visible. This screenshot illustrates the controls; it is not a performance
-guarantee for your device or settings.*
+*Historical screenshot from the earlier short-profiler workflow. In normal 0.3,
+enable Long Performance Capture before Play and hold the graph to mark or stop
+the run. The image illustrates graph placement; it is not a performance guarantee.*
 
 </details>
 
@@ -222,26 +236,39 @@ has been transferred or backed up.
 
 ## Current status
 
-The following has been demonstrated on a physical ARM64 iPad:
+**0.3.0 build 123 uses the live direct Metal game renderer by default.** The
+signed Release app has been installed and normally launched on the M5 iPad.
+Recent gameplay testing reports excellent visual clarity and a major
+native-resolution performance improvement; the retrieved native run used
+2416 × 1359 without upscaling. A remaining spike can occur and recover. Locked
+30 FPS across all scenes and devices has not been established.
 
-- a development-signed UIKit application containing the statically compiled GTA IV AOT code;
-- Xbox guest memory, kernel, threading, filesystem, XEX loading, and TU8 patch application;
-- execution reaching and continuing beyond the recompiled title entry point;
-- real GTA IV PM4 command processing and on-device Xenos shader translation;
-- Vulkan shader and pipeline creation through statically linked MoltenVK;
-- a UIKit-owned `CAMetalLayer`, three-image swapchain, and repeated Metal presentation;
-- native GameController and RemoteIO integration at the host boundary;
-- real XMA decoding, improved audio delivery, and centered 16:9 presentation;
-- the full opening 3D sequence and first player-control state in a Release build.
+The implementation includes:
 
-The promoted native renderer has reached gameplay on the M5 iPad. The measured
-captures above show real improvement in command delivery, while frame time
-still varies substantially in heavy scenes.
+- signed ahead-of-time ARM64 game code, Xbox guest memory and compatibility
+  services, matching XEX/TU8 loading, and native input/audio host integration;
+- a complete live Metal route with game shaders, ordered render passes, depth
+  and lighting contracts, reflections, effects and CAMetalLayer presentation;
+- shared geometry and shader constants, bounded CPU/GPU caches and storage
+  recycling protected by GPU completion;
+- capability-gated static BC-to-ASTC preparation for GPUs without BC support,
+  including progress, ETA, pause/resume and persistent cache reuse;
+- optimized normal launches with independent optional graphs and bounded
+  performance capture.
 
-The game has visibly booted on the test iPad, but this does **not** mean the port
-is complete or generally playable. Broader physical-controller acceptance,
-frontend/import UX, correctness, compatibility, performance, and
-long-duration stability remain active work.
+Build 123 passed 34 launcher/build tests, 27 CPU contracts, and 45 GPU graphics
+cases plus 32 saved draw replays in each of optimized and diagnostic configurations.
+Worker and delayed-GPU lifetime checks also passed. Tests prove their specific
+contracts; device coverage, long sessions, thermals and focus recovery still
+require broader validation. Older-device texture compatibility is not a promise
+of M5-equivalent performance.
+
+The source update and full engineering record are published on main. The
+[0.3 GitHub release](https://github.com/KoreanSeats1/Theft4/releases/tag/v0.3)
+includes the unsigned ARM64 IPA and its SHA-256 checksum. TestFlight distribution
+remains separate.
+See the [0.3 release notes](docs/RELEASE_0.3.md) and
+[current architecture record](docs/THEFT4_0.3_ARCHITECTURE.md).
 
 ## Engineering record
 
@@ -253,15 +280,17 @@ Its scene and effects are released before the game runtime starts.
 
 **Graphics** offers independent scene resolution and FSR choices, texture
 filtering, shadows, draw distance, model detail, reflection quality, edge
-smoothing and motion blur. The performance preset starts with 540p + FSR and
-conservative quality settings; all controls can be adjusted afterward. Changes
+smoothing, depth of field, motion blur and adjustable sharpening. **Frame Speed**
+preserves the selected resolution, uses original shadows, earlier resident LOD
+and shorter world distance, and disables optional blur and edge filtering. Changes
 apply at the next game launch. **Interface** provides the FPS counter,
 frame-time graph and touch controls. Existing preferences remain in the app
 data after an in-place update.
 Motion blur applies at the next game launch. Turning it off selects the stock
 non-blur composite variant; it does not disable depth of field or the entire
-post-processing pass. Device visual/performance acceptance is pending. See the
-[motion-blur and fast-driving test plan](docs/THEFT4_MOTION_BLUR_AND_STREAMING.md).
+post-processing pass. See the
+[earlier motion-blur and fast-driving test plan](docs/THEFT4_MOTION_BLUR_AND_STREAMING.md)
+for the experiment history.
 
 Enable touch controls for
 a movement stick, swipe-to-look on empty screen space, Xbox buttons/triggers,
@@ -273,8 +302,8 @@ Touch gameplay and save/reload are still undergoing device verification.
 GPU freezes during extended play and app switching are known issues; the
 input/display switches do not change renderer stability settings.
 
-The promoted renderer uses two completion-owned native frame slots. Scene
-resolution and output mode are selected in Graphics before launch; 720p remains
+The promoted renderer uses bounded completion-owned frames and GPU-retired
+upload storage. Scene resolution and output mode are selected in Graphics before launch; 720p remains
 available. Long-session stability and background/foreground recovery still
 need device testing.
 
@@ -285,11 +314,11 @@ measured outcomes, rejected approaches, and remaining verification:
 - [3D performance execution plan](THEFT4_3D_PERFORMANCE_PLAN.md) — ordered work and
   the latest renderer checkpoint;
 - [CPU-first native-renderer audit](docs/THEFT4_CPU_PERFORMANCE_AUDIT.md) — the
-  current 1080p city CPU profile, logging/validation costs, safe optimization
+  historical 1080p city CPU profile, logging/validation costs, safe optimization
   experiments and paced-30 acceptance criteria;
 - [Current paced-30 implementation plan](docs/THEFT4_30FPS_IMPLEMENTATION_PLAN.md)
-  — ordered CPU optimization passes, tests and keep/revert gates; planned,
-  not yet implemented;
+  — historical planning baseline for CPU passes, tests and keep/revert gates;
+  see the 0.3 architecture record for what was implemented;
 - [September 16 GPU diagnosis](THEFT4_GPU_DIAGNOSTIC_2026-09-16.md) — trace-backed
   generic-renderer analysis and experiment design;
 - [iOS architecture report](LIBERTYRECOMP_IOS_ARCHITECTURE.md) and
@@ -303,26 +332,27 @@ captures, logs, device identifiers, and signing material are deliberately exclud
 ## Architecture
 
 ```text
-Theft4 UIKit application
+Theft4 UIKit application and iOS lifecycle
         |
-        v
-Versioned C bridge and iOS lifecycle adapters
+Versioned bridge + LibertyRecomp / ReXGlue compatibility runtime
         |
-        v
-LibertyRecomp / ReXGlue compatibility runtime
+        +--> signed AOT game code (PowerPC -> C++ -> ARM64)
+        +--> Xbox memory, kernel, threading, filesystem, input and audio services
         |
-        +--> statically recompiled GTA IV code (PowerPC -> C++ -> ARM64)
-        +--> Xbox kernel, memory, threading, filesystem, input and audio services
-        +--> generic Xenos command processor + runtime shader translation
-        |
-        +--> opt-in GTA-IV-specific renderer + cached native SPIR-V
-                                   |
-                                   v
-                            Vulkan / MoltenVK
-                                   |
-                                   v
-                                 Metal
+        +--> GTA IV ordered rendering commands
+                    |
+             Immutable CPU frame preparation
+             geometry / constants / texture views / pipeline recipes
+                    |
+             Native Metal worker and encoders
+                    |
+             Metal GPU resources and CAMetalLayer presentation
+                    |
+             Completion receipts -> retirement and upload recycling
+
+Offline stock shader export -> reflected Metal libraries -> native Metal pipelines
 ```
+
 
 The iOS application owns `UIApplication`/`UIScene`, the visible view and
 `CAMetalLayer`, device storage, user interaction, and lifecycle. The runtime is
@@ -366,13 +396,16 @@ its optional first argument to configure device signing:
 ./Generate-Theft4-Xcode.command YOUR_TEAM_ID
 ```
 
-The current graphics bring-up expects the documented public MoltenVK archives;
-the generator fails with an explicit explanation if they have not been built.
+The direct Metal build requires the documented offline game/host Metal libraries.
+Legacy MoltenVK archives remain link prerequisites; their presence does not mean
+normal gameplay submits through Vulkan. The generator rejects missing shader
+inputs rather than silently selecting another renderer.
 Then follow:
 
 - [iOS core build](docs/IOS_CORE_BUILD.md)
 - [iOS application and device build](docs/IOS_APP_BUILD.md)
 - [real AOT startup status](docs/IOS_GAME_STARTUP.md)
+- [iOS Mods: time-cycle replacement and Native Aspect Ratio](docs/IOS_MODS.md)
 - [desktop/upstream build guide](docs/BUILDING.md)
 - [lawful dumping guide](docs/DUMPING-en.md)
 
@@ -384,10 +417,12 @@ The new guide covers signing, game-file transfer, starting the game, and the
 explicit Debug opt-in. CMake files, not generated project build settings, remain
 the source of truth.
 
-The GTA-IV-specific renderer is currently an experimental build/launch option,
-not the broadly validated default. Its switches, exact measured result, retail
-fidelity settings, and fallback behavior are documented in the
-[engineering changelog](CHANGELOG.md).
+The GTA-IV-specific direct Metal renderer is the default for 0.3. An explicit
+`THEFT4_RENDERER=vulkan` build selects the retained comparison path. The
+[build guide](docs/IOS_RELEASE_BUILD.md) documents both routes, offline shader
+preparation, signing and remaining dependency prerequisites; the
+[architecture record](docs/THEFT4_0.3_ARCHITECTURE.md) explains the implemented
+boundaries and validation evidence.
 
 GitHub's automatic source ZIP does not contain the contents of Git submodules.
 For a complete checkout, use the recursive clone command above. The release IPA
@@ -401,9 +436,11 @@ Theft4 is built on substantial existing open-source work. It began as an iOS
 porting branch of [LibertyRecomp](https://github.com/OZORDI/LibertyRecomp) and
 preserves that project's Git history and GPL license. The runtime and translation
 stack draws heavily from ReXGlue and Xenia; its ahead-of-time approach was
-inspired by XenonRecomp; graphics uses XenosRecomp, Vulkan, SPIR-V tooling, and
-MoltenVK. FFmpeg, SDL, and numerous smaller libraries are included or referenced
-through pinned dependencies.
+inspired by XenonRecomp. The direct Metal renderer uses offline stock shader export,
+SPIR-V tooling and SPIRV-Cross to produce reflected Metal libraries. The earlier
+Vulkan/MoltenVK implementation remains available for comparison. FFmpeg, SDL
+and numerous smaller libraries are included or referenced through pinned
+dependencies.
 
 See [Third-party projects and attribution](docs/ATTRIBUTION.md) and the license
 files in each dependency for details. XeniOS was used as an iOS behavior and

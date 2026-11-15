@@ -786,5 +786,22 @@ CMakeUserPresets.json
 !/tests/ios/test_xcode_generator.py
 !/tests/ios/test_installation_routing.py
 !/tests/ios/test_capture_defaults.py
+!/tests/ios/test_optional_performance_controls.py
 !/docs/THEFT4_LAB_PACING_CAPTURE.md
 !/tools/analyze_lab_pacing.py
+
+# Source-backed 0.3 release and integration records.
+!/docs/RELEASE_0.3.md
+!/docs/RELEASE_0.3.1.md
+!/docs/IOS_MODS.md
+!/tests/ios/mods/extract_aspect_camera.py
+!/tests/ios/mods/extract_aspect_ui.py
+!/tests/ios/mods/extract_gameplay.py
+!/docs/THEFT4_0.3_ARCHITECTURE.md
+!/docs/THEFT4_0.3_MAIN_INTEGRATION.md
+!/docs/THEFT4_0.3_CHANGE_MANIFEST.json
+!/tools/theft4_renderer_build_args.sh
+
+# Retained investigation document exemptions from the pre-0.3 main checkout
+!/docs/M5_TRANSITION_INVESTIGATION_2026-09-25.md
+!/docs/M5_TRANSITION_BUILD_LEDGER.json

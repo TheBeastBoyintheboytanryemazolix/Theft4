@@ -208,19 +208,8 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalDraw(
   };
   auto& timing=native_metal_frame_->draw_timing;
 
-  // The Direct Metal catalog contains the title's stock Xenos shader modules.
-  // Modern Vulkan override modules have a separate identity/interface and are
-  // not interchangeable with those stock entries. Until their MSL lowering is
-  // present, preserve the game's original shader pair instead of discarding
-  // every draw that happens to request an optional replacement.
-  const auto requested_selection=ResolvePipelineShaderOverrides(
-      state.vertex_shader_resource,state.pixel_shader_resource,target.samples);
-  const ShaderOverrideSelection selection{};
-  if(requested_selection.vertex_override||requested_selection.pixel_override) {
-    static std::atomic<bool> reported_stock_fallback{false};
-    if(!reported_stock_fallback.exchange(true,std::memory_order_relaxed))
-      REXLOG_WARN("gta4-metal: optional shader override has no Metal lowering; using the original GTA IV shader pair");
-  }
+  const auto selection=ResolvePipelineShaderOverrides(state.vertex_shader_resource,state.pixel_shader_resource,target.samples);
+  if(selection.vertex_override||selection.pixel_override)return reject("Metal override shader library lowering unavailable");
   NativePipelineCapabilities capabilities;
   capabilities.maxVertexInputAttributes=31;capabilities.maxVertexInputBindings=kVertexStreamCount;
   capabilities.maxVertexInputBindingStride=2048;capabilities.maxVertexInputAttributeOffset=2047;

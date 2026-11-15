@@ -11,7 +11,6 @@
 #include <user/config.h>
 #include <os/logger.h>
 #include <cstring>
-#include <cmath>
 
 // Big-endian helpers for writing to guest memory
 namespace {
@@ -149,17 +148,12 @@ void ApplyConfigPatches(uint8_t* base) {
     WriteFloatBE(base, Addresses::BUILDING_DETAIL_DIST, newBuildingLOD);
     LOGF_INFO("[LOD] Building LOD distance: {:.1f} -> {:.1f}", buildingLODDist, newBuildingLOD);
     
-    // Screen size thresholds (affect when LOD switches occur).
-    // Apply this for multipliers below 1.0 as well: a smaller LOD distance
-    // multiplier must raise the screen-size thresholds so distant objects
-    // switch to cheaper LODs sooner. Previously this was only written when
-    // lodDistMult > 1.0, silently ignoring the performance-oriented case.
-    // Keep the divisor finite and positive because these values are written
-    // directly into guest memory and are consumed by the game's LOD system.
-    const float safeLodDistMult =
-        (std::isfinite(lodDistMult) && lodDistMult > 0.01f) ? lodDistMult : 0.01f;
-    WriteFloatBE(base, Addresses::SCREEN_SIZE_THRESHOLD, 360.0f / safeLodDistMult);
-    WriteFloatBE(base, Addresses::MIN_SCREEN_SIZE, 10.0f / safeLodDistMult);
+    // Screen size thresholds (affect when LOD switches occur)
+    if (lodDistMult > 1.0f) {
+        // Reduce screen size thresholds to delay LOD switching
+        WriteFloatBE(base, Addresses::SCREEN_SIZE_THRESHOLD, 360.0f / lodDistMult);
+        WriteFloatBE(base, Addresses::MIN_SCREEN_SIZE, 10.0f / lodDistMult);
+    }
     
     // LOD bias (higher = more aggressive LOD reduction, 0 = disabled)
     if (disableLOD) {
