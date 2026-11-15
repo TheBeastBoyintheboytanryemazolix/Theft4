@@ -151,7 +151,7 @@ void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
   // single bounded preparation slot for the next visible texture.
   CompleteBcPreload();
   ready_bc_preload.reset();
-  bc_preparation_task.Initialize(true,"Theft4 BC texture preload",4);
+  bc_preparation_task.Initialize(NativePreparationTask::Requested(),"Theft4 BC texture preload",4);
   if(!bc_preparation_task.available())return;
   auto job=std::make_shared<BcPreloadJob>();
   job->resource=std::move(resource);job->format=format;
