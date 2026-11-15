@@ -787,6 +787,7 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
   size_t command_index=0;
   diagnostic_submitted_frame_=present.submitted_frame;
   std::set<std::string> scan_errors;
+  std::set<std::string> skipped_draw_errors;
   for(const NativeCommand& command:current_frame_) {
     diagnostic_command_index_=command_index++;
     if (!diagnostic_scan) ObserveNativeLightCommand(command);
@@ -1125,6 +1126,22 @@ bool Gta4NativeGraphicsSystem::PublishNativeMetalFrame(
     return true;
     };
     if(!lower_command()) {
+      const bool is_guest_draw =
+          command.type==CommandType::kDrawPrimitive ||
+          command.type==CommandType::kDrawPrimitiveUp ||
+          command.type==CommandType::kDrawIndexedPrimitive;
+      // A single guest draw that cannot be lowered must not suppress every
+      // otherwise valid pass and the final CAMetalLayer presentation. The
+      // backend already validates the remaining immutable plan before submit.
+      // Keep non-draw/resource/resolve failures fail-closed because they can
+      // invalidate later resource dependencies.
+      if(!diagnostic_scan && is_guest_draw) {
+        if(skipped_draw_errors.size()<32 && skipped_draw_errors.insert(error).second)
+          REXLOG_WARN("gta4-metal-draw-lowering: skipped cmd={} type={} reason={}",
+              diagnostic_command_index_,uint32_t(command.type),error);
+        error.clear();
+        continue;
+      }
       if(!diagnostic_scan)return false;
       if(scan_errors.size()<32&&scan_errors.insert(error).second)
         REXLOG_WARN("gta4-metal-command-scan: provisional cmd={} type={} reason={}",
