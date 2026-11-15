@@ -38,6 +38,12 @@ option(THEFT4_COMPILE_GTA4_NATIVE_BACKEND
     "Compile-check LibertyRecomp's GTA IV native renderer for iOS without selecting it" OFF)
 option(THEFT4_ENABLE_GTA4_NATIVE_BACKEND
     "Embed the GTA IV native renderer behind THEFT4_GRAPHICS_BACKEND=native" OFF)
+option(THEFT4_BC_TEXTURE_COMPATIBILITY
+    "Build optional BC-to-ASTC preparation for GPUs without direct BC texture support"
+    ${THEFT4_ENABLE_GTA4_NATIVE_BACKEND})
+if(THEFT4_BC_TEXTURE_COMPATIBILITY AND NOT THEFT4_ENABLE_GTA4_NATIVE_BACKEND)
+    message(FATAL_ERROR "BC texture compatibility requires the GTA IV native renderer")
+endif()
 if(THEFT4_DIRECT_METAL_BACKEND AND NOT THEFT4_ENABLE_GTA4_NATIVE_BACKEND)
     message(FATAL_ERROR "The live Metal frontend requires the GTA IV native backend")
 endif()
@@ -223,6 +229,24 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             xxHash::xxhash
             libavcodec
             libavutil)
+        if(THEFT4_BC_TEXTURE_COMPATIBILITY)
+            set(ASTCENC_CLI OFF CACHE BOOL "" FORCE)
+            set(ASTCENC_UNITTEST OFF CACHE BOOL "" FORCE)
+            set(ASTCENC_WERROR OFF CACHE BOOL "" FORCE)
+            set(ASTCENC_UNIVERSAL_BUILD OFF CACHE BOOL "" FORCE)
+            set(ASTCENC_ISA_NEON ON CACHE BOOL "" FORCE)
+            add_subdirectory("${CMAKE_SOURCE_DIR}/thirdparty/astc-encoder"
+                "${CMAKE_BINARY_DIR}/theft4-astc-encoder" EXCLUDE_FROM_ALL)
+            target_sources(theft4_gta4_native_compile PRIVATE
+                bridge/theft4_astc_texture.cpp
+                bridge/theft4_texture_manifest.cpp)
+            target_include_directories(theft4_gta4_native_compile PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/bridge"
+                "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/crypto")
+            target_link_libraries(theft4_gta4_native_compile PRIVATE astcenc-neon-static)
+            target_compile_definitions(theft4_gta4_native_compile PRIVATE
+                THEFT4_BC_TEXTURE_COMPATIBILITY=1)
+        endif()
         target_compile_definitions(theft4_gta4_native_compile PRIVATE
             REX_HAS_VULKAN=1
             REXGLUE_BUILD_CONFIG="$<CONFIG>"
@@ -520,6 +544,20 @@ add_executable(Theft4 MACOSX_BUNDLE Theft4/main.m Theft4/Theft4TouchControls.m
     Theft4/Theft4LauncherView.m
     Theft4/Theft4FrameTimeView.m Theft4/Theft4CityView.m Theft4/Theft4CPUUsageView.m
     Theft4/XeniOS-Touch-LICENSE.txt "${THEFT4_ASSET_CATALOG}" ${THEFT4_TIMECYCLE_RESOURCES})
+if(THEFT4_BC_TEXTURE_COMPATIBILITY)
+    enable_language(OBJCXX)
+    target_sources(Theft4 PRIVATE
+        Theft4/Theft4TexturePreparation.mm
+        "${CMAKE_SOURCE_DIR}/thirdparty/astc-encoder/LICENSE.txt")
+    set_source_files_properties(Theft4/Theft4TexturePreparation.mm PROPERTIES
+        COMPILE_OPTIONS "-fobjc-arc")
+    set_target_properties(Theft4 PROPERTIES OBJCXX_STANDARD 23 OBJCXX_STANDARD_REQUIRED YES)
+    target_include_directories(Theft4 PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/json/include")
+    target_compile_features(Theft4 PRIVATE cxx_std_23)
+    set_source_files_properties(
+        "${CMAKE_SOURCE_DIR}/thirdparty/astc-encoder/LICENSE.txt"
+        PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+endif()
 set_source_files_properties(Theft4/XeniOS-Touch-LICENSE.txt PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources)
 set_source_files_properties("${THEFT4_ASSET_CATALOG}" PROPERTIES
@@ -531,6 +569,9 @@ target_link_libraries(Theft4 PRIVATE theft4_core_bridge
     "-framework UniformTypeIdentifiers")
 target_link_options(Theft4 PRIVATE "LINKER:-dead_strip")
 target_compile_options(Theft4 PRIVATE -fobjc-arc)
+if(THEFT4_BC_TEXTURE_COMPATIBILITY)
+    target_compile_definitions(Theft4 PRIVATE THEFT4_BC_TEXTURE_COMPATIBILITY=1)
+endif()
 if(THEFT4_DIRECT_METAL_DEFAULT)
     target_compile_definitions(theft4_core_bridge PRIVATE THEFT4_DIRECT_METAL_DEFAULT=1)
     target_compile_definitions(Theft4 PRIVATE THEFT4_DIRECT_METAL_DEFAULT=1)
