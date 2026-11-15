@@ -79,7 +79,9 @@ jobs:
         env:
           THEFT4_METAL_LIBRARIES: ${{ github.workspace }}/out/direct-metal/ios
           THEFT4_BUILD_JOBS: '3'
-        run: tools/build_ios_release.sh 0.3.1
+        # The release script reads the current version and build number from
+        # ios/Theft4/Info.plist.in. Do not pin a stale version here.
+        run: tools/build_ios_release.sh
 
       - name: Upload unsigned IPA and checksum
         uses: actions/upload-artifact@v4
