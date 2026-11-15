@@ -7,6 +7,12 @@
 static inline bool theft4_bc_needs_preparation(bool supports_bc) {
     return !supports_bc;
 }
+// A16 uses the in-renderer BC1/BC2/BC3-to-RGBA8 fallback and intentionally
+// skips the optional whole-library ASTC preparation pass.
+static inline bool theft4_bc_needs_preparation_for_gpu(
+    bool supports_bc, bool is_a16) {
+    return !is_a16 && theft4_bc_needs_preparation(supports_bc);
+}
 static inline uint32_t theft4_bc_cached_sampler_capacity(
     bool supports_bc, uint32_t hardware_limit, uint32_t guest_registers) {
     return !supports_bc && hardware_limit < guest_registers
