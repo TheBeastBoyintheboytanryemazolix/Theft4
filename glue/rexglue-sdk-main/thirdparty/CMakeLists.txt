@@ -621,6 +621,9 @@ add_library(libavcodec STATIC
     ${FFMPEG_DIR}/libavcodec/profiles.c
     ${FFMPEG_DIR}/libavcodec/qsv_api.c
     ${FFMPEG_DIR}/libavcodec/raw.c
+    # Required by Theft4's BC1/BC2/BC3 CPU texture fallback. This
+    # hand-maintained source list does not consume FFmpeg's Makefile OBJS.
+    ${FFMPEG_DIR}/libavcodec/texturedsp.c
     ${FFMPEG_DIR}/libavcodec/utils.c
     ${FFMPEG_DIR}/libavcodec/vorbis_parser.c
     ${FFMPEG_DIR}/libavcodec/xiph.c
