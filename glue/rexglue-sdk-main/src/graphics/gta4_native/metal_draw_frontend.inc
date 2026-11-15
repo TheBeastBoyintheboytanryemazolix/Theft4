@@ -135,6 +135,51 @@ static bool DecodeNativeBcMipChain(
   return !decoded.empty() && decoded_mips.size()==source_mips.size();
 }
 
+void Gta4NativeGraphicsSystem::NativeMetalFrameState::CompleteBcPreload() {
+  if(!pending_bc_preload)return;
+  bc_preparation_task.Wait();
+  if(pending_bc_preload->succeeded)ready_bc_preload=std::move(pending_bc_preload);
+  else pending_bc_preload.reset();
+}
+
+void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
+    std::shared_ptr<const NativeTextureResource> resource,VkFormat format) {
+  if(!resource||resource->gpu_produced)return;
+  if(ready_bc_preload&&ready_bc_preload->resource->generation==resource->generation)return;
+  if(pending_bc_preload&&pending_bc_preload->resource->generation==resource->generation)return;
+  // Do not let a stale, unused result accumulate. Finish it before reusing the
+  // single bounded preparation slot for the next visible texture.
+  CompleteBcPreload();
+  ready_bc_preload.reset();
+  bc_preparation_task.Initialize(true,"Theft4 BC texture preload",4);
+  if(!bc_preparation_task.available())return;
+  auto job=std::make_shared<BcPreloadJob>();
+  job->resource=std::move(resource);job->format=format;
+  pending_bc_preload=job;
+  if(!bc_preparation_task.Start(job.get(),[](void* raw) {
+    auto& work=*static_cast<BcPreloadJob*>(raw);
+    try {
+      std::vector<theft4::render::source::TextureUploadMip> source_mips;
+      source_mips.reserve(work.resource->mip_levels.size());
+      for(const auto& mip:work.resource->mip_levels)
+        source_mips.push_back({mip.level,mip.width,mip.height,mip.depth,mip.base_array_layer,
+          mip.layer_count,mip.buffer_row_length,mip.buffer_image_height,mip.payload_offset,mip.payload_size});
+      work.succeeded=DecodeNativeBcMipChain(work.format,work.resource->payload,source_mips,
+                                             work.decoded,work.mips);
+    } catch(...) {
+      work.succeeded=false;work.decoded.clear();work.mips.clear();
+    }
+  }))pending_bc_preload.reset();
+}
+
+std::shared_ptr<Gta4NativeGraphicsSystem::NativeMetalFrameState::BcPreloadJob>
+Gta4NativeGraphicsSystem::NativeMetalFrameState::TakeBcPreload(uint64_t generation) {
+  if(pending_bc_preload&&pending_bc_preload->resource->generation==generation)
+    CompleteBcPreload();
+  if(!ready_bc_preload||ready_bc_preload->resource->generation!=generation)return {};
+  return std::exchange(ready_bc_preload,{});
+}
+
 bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
     NativeResourceView<NativeTextureResource> resource_view,const xenos::xe_gpu_texture_fetch_t& fetch,
     const NativeMetalFrameState& frame_state,theft4::render::HostFetch& output,std::string& error) {
@@ -182,12 +227,19 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
             m.layer_count,m.buffer_row_length,m.buffer_image_height,m.payload_offset,m.payload_size});
         const bool bc_format=format==VK_FORMAT_BC1_RGBA_UNORM_BLOCK||
             format==VK_FORMAT_BC2_UNORM_BLOCK||format==VK_FORMAT_BC3_UNORM_BLOCK;
+        std::shared_ptr<NativeMetalFrameState::BcPreloadJob> preloaded_bc;
         if(bc_format&&!caps.bc_textures) {
-          std::vector<r::source::TextureUploadMip> decoded_mips;
-          if(!DecodeNativeBcMipChain(format,payload,mips,bc_fallback_payload,decoded_mips))
-            return reject("Metal BC1/BC2/BC3 CPU fallback decode failed");
-          payload=bc_fallback_payload;
-          mips=std::move(decoded_mips);
+          preloaded_bc=native_metal_frame_->TakeBcPreload(resource->generation);
+          if(preloaded_bc&&preloaded_bc->succeeded) {
+            payload=preloaded_bc->decoded;
+            mips=preloaded_bc->mips;
+          } else {
+            std::vector<r::source::TextureUploadMip> decoded_mips;
+            if(!DecodeNativeBcMipChain(format,payload,mips,bc_fallback_payload,decoded_mips))
+              return reject("Metal BC1/BC2/BC3 CPU fallback decode failed");
+            payload=bc_fallback_payload;
+            mips=std::move(decoded_mips);
+          }
           format=VK_FORMAT_R8G8B8A8_UNORM;
         }
         if(!caps.bc_textures&&(format==VK_FORMAT_BC1_RGBA_UNORM_BLOCK||format==VK_FORMAT_BC2_UNORM_BLOCK||format==VK_FORMAT_BC3_UNORM_BLOCK||
@@ -242,6 +294,22 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalDraw(
     return reject("Metal draw CPU state unavailable");
   const auto& state=*command.pipeline_state;const auto& fixed=command.fixed_function_state;
   const auto caps=frame_backend_->Capabilities();
+  // Decode the next BC texture while this draw's pipeline, constants, and
+  // geometry are prepared. The result is consumed by the fetch path below.
+  if(!caps.bc_textures) {
+    const uint32_t texture_mask=state.vertex_shader_resource->used_texture_mask|
+        (state.pixel_shader_resource?state.pixel_shader_resource->used_texture_mask:0);
+    for(uint32_t slot=0;slot<kTextureStageCount;++slot)if(texture_mask&(1u<<slot)) {
+      const auto& texture=command.textures[slot];
+      if(!texture||texture->gpu_produced)continue;
+      const VkFormat texture_format=ConvertTextureFormat(texture->info.format);
+      if(texture_format!=VK_FORMAT_BC1_RGBA_UNORM_BLOCK&&
+         texture_format!=VK_FORMAT_BC2_UNORM_BLOCK&&texture_format!=VK_FORMAT_BC3_UNORM_BLOCK)continue;
+      if(native_metal_frame_->images.find(texture->generation)!=native_metal_frame_->images.end())continue;
+      native_metal_frame_->StartBcPreload(texture,texture_format);
+      break;
+    }
+  }
   uint32_t primitive=0,first=0,count=0,up_stride=0,start_index=0,marker=0;
   int32_t base_vertex=0;bool indexed=false,restart=false;
   if(command.type==CommandType::kDrawPrimitive) {
