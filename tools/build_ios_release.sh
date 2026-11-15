@@ -94,6 +94,9 @@ cmake_args=(
   -DTHEFT4_ENABLE_GAME_STARTUP=ON
   -DTHEFT4_COMPILE_GTA4_NATIVE_BACKEND=ON
   -DTHEFT4_ENABLE_GTA4_NATIVE_BACKEND=ON
+  # Keep optional whole-library BC-to-ASTC preparation out of the iOS app.
+  # The runtime BC1/BC2/BC3-to-RGBA fallback remains part of the renderer.
+  -DTHEFT4_BC_TEXTURE_COMPATIBILITY=OFF
   -DTHEFT4_LAB_BUILD=ON
   "${renderer_build_args[@]}"
   -DTHEFT4_SIGN_DEVICE=OFF
