@@ -2,6 +2,7 @@
 #include "theft4_boot.h"
 #include "theft4_bootstrap_audio.h"
 #include "theft4_bootstrap_graphics.h"
+#include "theft4_gta4_native_graphics.h"
 #include "theft4_bootstrap_input.h"
 #include "theft4_metal_presenter.h"
 #include "theft4_motion_blur.h"
@@ -527,8 +528,18 @@ int theft4_start_game(const char* game_directory, const char* support_directory,
                              support / "cache", {}, support / "marketplace", support / "saves");
         rex::RuntimeConfig config;
         config.tool_mode = false;
+#if defined(THEFT4_DIRECT_METAL_DEFAULT) && defined(THEFT4_DIRECT_METAL_BACKEND)
+        // Direct Metal is the selected production renderer, not merely the
+        // CAMetalLayer presentation surface. Never route guest GPU commands
+        // through the Vulkan/diagnostic bootstrap on this launch path.
+        REXLOG_INFO("Theft4 graphics selection: Direct Metal GTA IV renderer");
+        config.graphics = theft4_create_gta4_metal_graphics();
+        if (!config.graphics)
+            throw std::runtime_error("Direct Metal GTA IV renderer failed to initialize; refusing Vulkan/bootstrap fallback");
+#else
         config.graphics = theft4_create_bootstrap_graphics();
         if (!config.graphics) throw std::runtime_error("Selected graphics renderer could not initialize");
+#endif
         config.input_factory = [](bool) { return theft4_create_bootstrap_input(); };
         config.audio_factory = [](rex::runtime::FunctionDispatcher* dispatcher) {
             return theft4_create_bootstrap_audio(dispatcher);
