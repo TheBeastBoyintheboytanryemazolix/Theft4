@@ -239,6 +239,14 @@ if(THEFT4_ENABLE_GAME_STARTUP)
             # too so the app actually compiles and calls the direct Metal factory.
             target_compile_definitions(theft4_core_bridge PRIVATE
                 THEFT4_DIRECT_METAL_BACKEND=1)
+            # CMake options are not preprocessor definitions. Without this
+            # explicit definition the startup #if silently selects the legacy
+            # Vulkan/bootstrap renderer even when the IPA was configured for
+            # Direct Metal. Keep the compile-time selection tied to the option.
+            if(THEFT4_DIRECT_METAL_DEFAULT)
+                target_compile_definitions(theft4_core_bridge PRIVATE
+                    THEFT4_DIRECT_METAL_DEFAULT=1)
+            endif()
             # The Direct Metal app has no Vulkan runtime. Keep the legacy
             # Vulkan compatibility objects linkable without pulling in
             # MoltenVK; its loader stub fails closed if Vulkan is requested.
