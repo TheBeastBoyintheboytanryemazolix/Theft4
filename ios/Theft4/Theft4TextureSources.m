@@ -10,14 +10,15 @@ BOOL Theft4DeviceNeedsBCTexturePreparation(void) {
     // make A16 users wait through the optional whole-library ASTC preparation;
     // the fallback decodes each texture as it is uploaded instead.
     NSString *gpuName = device.name ?: @"";
-    if ([gpuName localizedCaseInsensitiveContainsString:@"A16"]) return NO;
+    const BOOL isA16 = [gpuName localizedCaseInsensitiveContainsString:@"A16"];
 
-    // GPUs with native BC support (including supported M-series iPads) also
-    // skip the one-time ASTC conversion. If capability detection is
-    // unavailable, favor the compatibility path on other devices.
-    return theft4_bc_needs_preparation(device &&
-           [device respondsToSelector:@selector(supportsBCTextureCompression)] &&
-           device.supportsBCTextureCompression);
+    // GPUs with native BC support (including supported M-series iPads) and
+    // A16 (which uses Emil's CPU BC fallback) skip the one-time ASTC pass.
+    // If capability detection is unavailable, favor compatibility on others.
+    const BOOL supportsBC = device &&
+        [device respondsToSelector:@selector(supportsBCTextureCompression)] &&
+        device.supportsBCTextureCompression;
+    return theft4_bc_needs_preparation_for_gpu(supportsBC, isA16);
 }
 
 BOOL Theft4DeviceNeedsOlderBCPresentation(void) {
