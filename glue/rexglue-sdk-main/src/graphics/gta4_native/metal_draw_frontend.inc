@@ -177,7 +177,9 @@ Gta4NativeGraphicsSystem::NativeMetalFrameState::TakeBcPreload(uint64_t generati
   if(pending_bc_preload&&pending_bc_preload->resource->generation==generation)
     CompleteBcPreload();
   if(!ready_bc_preload||ready_bc_preload->resource->generation!=generation)return {};
-  return std::exchange(ready_bc_preload,{});
+  auto result=std::move(ready_bc_preload);
+  ready_bc_preload.reset();
+  return result;
 }
 
 bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
