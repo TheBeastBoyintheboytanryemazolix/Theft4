@@ -61,6 +61,10 @@ REXCVAR_DEFINE_BOOL(vulkan_tessellation_wireframe, false, "GPU/Vulkan",
                     "Render tessellation as wireframe")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+// Defined in command_processor.cpp; declare the generated storage accessor
+// for this translation unit, which also reads the dynamic-rendering CVAR.
+REXCVAR_DECLARE(bool, vulkan_dynamic_rendering);
+
 namespace rex::graphics::vulkan {
 
 namespace {
