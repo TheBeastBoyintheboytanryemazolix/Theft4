@@ -14,6 +14,14 @@ int main() {
                   "BC-capable GPU changed its presentation path");
     }
     Check(theft4_bc_needs_preparation(false), "Unsupported BC GPU skipped preparation");
+    Check(!theft4_bc_needs_preparation_for_gpu(false, true),
+          "A16 must use the BC fallback without ASTC preparation");
+    Check(!theft4_bc_needs_preparation_for_gpu(true, true),
+          "A16 policy must remain independent of BC capability reporting");
+    Check(!theft4_bc_needs_preparation_for_gpu(true, false),
+          "Native BC GPU should skip ASTC preparation");
+    Check(theft4_bc_needs_preparation_for_gpu(false, false),
+          "Other BC-incompatible GPUs must retain ASTC preparation");
     Check(theft4_bc_cached_sampler_capacity(false, 16, 26) == 16,
           "Older GPU exceeded its sampler limit");
     Check(theft4_bc_cached_sampler_capacity(false, 32, 26) == 26,
