@@ -102,6 +102,7 @@ struct Gta4NativeGraphicsSystem::NativeMetalFrameState {
     VkFormat format=VK_FORMAT_UNDEFINED;
     std::vector<uint8_t> decoded;
     std::vector<theft4::render::source::TextureUploadMip> mips;
+    double decode_ms=0;
     bool succeeded=false;
   };
   // One bounded decode is in flight at a time. The worker owns only an immutable
