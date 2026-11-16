@@ -137,7 +137,7 @@ static bool DecodeNativeBcMipChain(
 
 void Gta4NativeGraphicsSystem::NativeMetalFrameState::CompleteBcPreload() {
   if(!pending_bc_preload)return;
-  bc_preparation_task.Wait();
+  if(bc_preparation_task)bc_preparation_task->Wait();
   if(pending_bc_preload->succeeded)ready_bc_preload=std::move(pending_bc_preload);
   else pending_bc_preload.reset();
 }
@@ -151,12 +151,13 @@ void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
   // single bounded preparation slot for the next visible texture.
   CompleteBcPreload();
   ready_bc_preload.reset();
-  bc_preparation_task.Initialize(NativePreparationTask::Requested(),"Theft4 BC texture preload",4);
-  if(!bc_preparation_task.available())return;
+  bc_preparation_task=std::make_unique<NativePreparationTask>();
+  bc_preparation_task->Initialize(NativePreparationTask::Requested(),"Theft4 BC texture preload",4);
+  if(!bc_preparation_task->available())return;
   auto job=std::make_shared<BcPreloadJob>();
   job->resource=std::move(resource);job->format=format;
   pending_bc_preload=job;
-  if(!bc_preparation_task.Start(job.get(),[](void* raw) {
+  if(!bc_preparation_task->Start(job.get(),[](void* raw) {
     auto& work=*static_cast<BcPreloadJob*>(raw);
     try {
       std::vector<theft4::render::source::TextureUploadMip> source_mips;
