@@ -107,7 +107,7 @@ struct Gta4NativeGraphicsSystem::NativeMetalFrameState {
   // One bounded decode is in flight at a time. The worker owns only an immutable
   // guest snapshot; the render worker publishes/consumes its result after Wait().
   std::shared_ptr<BcPreloadJob> pending_bc_preload;
-  NativePreparationTask bc_preparation_task;
+  std::unique_ptr<NativePreparationTask> bc_preparation_task;
   std::shared_ptr<BcPreloadJob> ready_bc_preload;
   void CompleteBcPreload();
   void StartBcPreload(std::shared_ptr<const NativeTextureResource>,VkFormat);
