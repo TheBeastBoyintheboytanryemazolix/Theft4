@@ -217,7 +217,15 @@ struct Frame::Impl {
   size_t profiled_passes=0;
   std::vector<size_t> pass_mapping;
   MTLTimestamp cpu_reference=0,gpu_reference=0;
-  ~Impl() { if (encoder) [encoder endEncoding]; if(blit)[blit endEncoding]; }
+  // Metal's tracked-resource hazard system orders accesses across encoders
+  // submitted to this command buffer. Keep encoder boundaries explicit so
+  // blits never overlap a render pass and later passes observe prior copies.
+  void FinishBlitEncoder() {
+    if (!blit) return;
+    [blit endEncoding];
+    blit = nil;
+  }
+  ~Impl() { if (encoder) [encoder endEncoding]; FinishBlitEncoder(); }
 };
 Renderer::Renderer(NSUInteger maximum) {
   if (maximum >= 1 && maximum <= 3) impl_ = std::make_shared<Impl>(maximum);
@@ -487,7 +495,7 @@ bool Frame::BeginOwnedPass(MTLRenderPassDescriptor* pass,std::string& error) {
 }
 bool Frame::BeginPassImpl(MTLRenderPassDescriptor* pass,bool copy,std::string& error) {
   if (!*this || impl_->encoder || !pass) return Error(error, "Invalid direct Metal pass transition");
-  if(impl_->blit){[impl_->blit endEncoding];impl_->blit=nil;}
+  impl_->FinishBlitEncoder();
   impl_->state={};
   impl_->pass = copy ? [pass copy] : pass;
   // Attachment properties are immutable for this encoder's owned descriptor.
@@ -749,7 +757,7 @@ bool Frame::Present(id<CAMetalDrawable> drawable, std::string& error) {
   if (!*this || impl_->encoder || impl_->presented || !drawable ||
       drawable.texture != impl_->stored_color)
     return Error(error, "Metal presentation requires the stored drawable pass");
-  if(impl_->blit){[impl_->blit endEncoding];impl_->blit=nil;}
+  impl_->FinishBlitEncoder();
   [impl_->buffer presentDrawable:drawable]; impl_->presented = true; return true;
 }
 void Frame::RetainUntilCompletion(std::shared_ptr<void> lease) {
@@ -758,7 +766,7 @@ void Frame::RetainUntilCompletion(std::shared_ptr<void> lease) {
 Receipt Frame::Submit(std::string& error) {
   Receipt result;
   if (!*this || impl_->encoder) { error = "Metal submission requires an ended pass"; return result; }
-  if(impl_->blit){[impl_->blit endEncoding];impl_->blit=nil;}
+  impl_->FinishBlitEncoder();
   auto lease = impl_->lease;
   auto uploads=impl_->upload_lease;
   [impl_->buffer addCompletedHandler:^(id<MTLCommandBuffer>) { (void)lease;(void)uploads; }];
