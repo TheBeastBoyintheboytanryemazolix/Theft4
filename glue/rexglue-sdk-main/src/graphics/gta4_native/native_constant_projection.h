@@ -164,9 +164,20 @@ inline bool CanReuseConstantProjection(const ConstantStateVersion* previous,
     if (!current || current->delta.complete_snapshot || !current->parent ||
         !ValidateConstantPayloadDelta(current->delta, current->byte_size)) return false;
     for (const auto& r : current->delta.ranges) {
-      for (uint32_t reg = r.destination_offset / 16;
-           reg <= (r.destination_offset + r.byte_count - 1) / 16; ++reg)
-        if (reg >= 256 || (mask[reg / 64] & (uint64_t(1) << (reg % 64)))) return false;
+      const uint32_t first_reg = r.destination_offset / 16;
+      const uint32_t last_reg = (r.destination_offset + r.byte_count - 1) / 16;
+      // A projection covers exactly 256 float4 registers. Reject out-of-bank
+      // deltas before indexing the four-word mask.
+      if (last_reg >= 256) return false;
+      const uint32_t first_word = first_reg / 64;
+      const uint32_t last_word = last_reg / 64;
+      for (uint32_t word = first_word; word <= last_word; ++word) {
+        const uint32_t first_bit = word == first_word ? first_reg % 64 : 0;
+        const uint32_t last_bit = word == last_word ? last_reg % 64 : 63;
+        const uint64_t range_mask = (~uint64_t{0} << first_bit) &
+                                    (~uint64_t{0} >> (63 - last_bit));
+        if (mask[word] & range_mask) return false;
+      }
     }
     current = current->parent.get();
   }
