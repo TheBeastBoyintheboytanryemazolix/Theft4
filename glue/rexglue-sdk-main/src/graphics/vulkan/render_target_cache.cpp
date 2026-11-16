@@ -47,9 +47,10 @@ REXCVAR_DEFINE_BOOL(
     "Count standalone render-target ownership-transfer work for bounded "
     "performance experiments");
 REXCVAR_DEFINE_BOOL(
-    vulkan_transfer_in_draw_pass, false, "GPU/Vulkan",
+    vulkan_transfer_in_draw_pass, true, "GPU/Vulkan",
     "Encode compatible render-target ownership transfers in the following "
-    "guest draw pass (experimental on tile-based GPUs)");
+    "guest draw pass. Unsupported or incompatible transfers automatically "
+    "use the established standalone path; disable to force standalone transfers.");
 
 // This CVAR is defined in command_processor.cpp and also read in this
 // translation unit; declare its generated storage accessor here.
