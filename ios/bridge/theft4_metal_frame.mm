@@ -114,7 +114,11 @@ struct FrameAdapter::Impl {
     auto d=[MTLTextureDescriptor new];d.textureType=s->samples>1 ? MTLTextureType2DMultisample : Type(s->kind);
     d.pixelFormat=PlanAdapter::PixelFormat(s->format);d.width=s->width;d.height=s->height;
     d.mipmapLevelCount=s->levels;d.arrayLength=s->layers;d.sampleCount=s->samples;
-    d.storageMode=MTLStorageModePrivate;d.hazardTrackingMode=MTLHazardTrackingModeTracked;
+    d.storageMode=MTLStorageModePrivate;
+    // Keep render targets tracked: Metal orders write/read hazards between
+    // blit and render encoders in this frame's single command buffer. Do not
+    // switch these to Untracked unless explicit MTLFence dependencies are added.
+    d.hazardTrackingMode=MTLHazardTrackingModeTracked;
     // PixelFormatView disables Apple's lossless render-target compression.
     // Same-format, linear/sRGB, ranged and swizzled color aliases don't need
     // it. Admission rejects other color reinterpretations. Combined depth /
