@@ -357,7 +357,10 @@ if(THEFT4_ENABLE_GAME_STARTUP)
                 "${THEFT4_GTA4_NATIVE_SMOLV_ROOT}"
                 "${THEFT4_GTA4_NATIVE_ZSTD_ROOT}/lib"
                 "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/src"
-                "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/stb")
+                "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/stb"
+                # graphics_system.h includes libavcodec/texturedsp.h for BC1/2/3 fallback.
+                # The bridge compiles that header directly, so expose the FFmpeg submodule root.
+                "${CMAKE_SOURCE_DIR}/glue/rexglue-sdk-main/thirdparty/FFmpeg")
             target_link_libraries(theft4_core_bridge PRIVATE
                 theft4_gta4_native_compile libzstd_static)
             target_compile_definitions(theft4_core_bridge PUBLIC
