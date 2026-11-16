@@ -7,6 +7,7 @@
 #include <deque>
 #include <thread>
 #include <chrono>
+#include <vector>
 #include <cstdio>
 #include <map>
 #include <TargetConditionals.h>
@@ -96,6 +97,7 @@ class Backend final:public render::FrameBackend {
     const bool diagnostics=!theft4_retail_mode();
     const auto now=[&]{return diagnostics?Clock::now():Clock::time_point{};};
     const auto began=now();
+    last_completion_wait_ms_=0;
     // Reap completed work and bound admission before acquiring a scarce drawable.
     while(!pending_.empty() && (pending_.front().receipt.Completed() || pending_.size()>=maximum_)) {
       if(!FinishOldest(error))return false;
@@ -133,10 +135,10 @@ class Backend final:public render::FrameBackend {
       last_slow_submission_=submitted_at;++slow_submissions_;
       const auto t=adapter_->LastTiming();const auto resources=adapter_->ImmutableStats();
       char message[1024];std::snprintf(message,sizeof(message),
-        "gta4-metal-slow-submit: sequence=%llu present=%d total-ms=%.3f admission-ms=%.3f drawable-ms=%.3f validate-ms=%.3f prepare-ms=%.3f encode-ms=%.3f draws=%llu new-pipelines=%llu new-buffers=%llu new-textures=%llu upload-bytes=%llu buffer-cache-bytes=%llu buffer-evictions=%llu constant-cache-bytes=%llu constant-evictions=%llu",
+        "gta4-metal-slow-submit: sequence=%llu present=%d total-ms=%.3f admission-ms=%.3f completion-wait-ms=%.3f drawable-ms=%.3f validate-ms=%.3f prepare-ms=%.3f encode-ms=%.3f commands=%llu draws=%llu new-pipelines=%llu new-buffers=%llu new-textures=%llu upload-bytes=%llu buffer-cache-bytes=%llu buffer-evictions=%llu constant-cache-bytes=%llu constant-evictions=%llu",
         (unsigned long long)plan->sequence,int(present),submit_ms,
-        std::chrono::duration<double,std::milli>(admitted-began).count(),drawable_ms,
-        t.validation_ms,t.preparation_ms,t.encoding_ms,(unsigned long long)t.draws,
+        std::chrono::duration<double,std::milli>(admitted-began).count(),last_completion_wait_ms_,drawable_ms,
+        t.validation_ms,t.preparation_ms,t.encoding_ms,(unsigned long long)t.commands,(unsigned long long)t.draws,
         (unsigned long long)t.pipelines_created,(unsigned long long)t.buffers_created,
         (unsigned long long)t.textures_created,(unsigned long long)t.uploaded_bytes,
         (unsigned long long)resources.resident_buffer_bytes,(unsigned long long)resources.buffer_evictions,
@@ -158,8 +160,8 @@ class Backend final:public render::FrameBackend {
         (unsigned long long)t.avoided_attachment_loads,(unsigned long long)t.native_identity_copies,
         (unsigned long long)t.binding_storage_reuses,(unsigned long long)t.binding_storage_fresh,
         adapter_->Stats().host_specializations,adapter_->Stats().host_specialization_fallbacks);
-      char message[1400];std::snprintf(message,sizeof(message),"gta4-metal-performance: present=%llu wait-ms=%.3f drawable-ms=%.3f validate-ms=%.3f prepare-ms=%.3f encode-ms=%.3f last-gpu-ms=%.3f commands=%llu draws=%llu new-pipelines=%llu new-buffers=%llu new-textures=%llu upload-bytes=%llu binding-calls=%llu avoided-calls=%llu resident-bytes=%zu buffer-cache-bytes=%llu buffer-cache-peak=%llu buffer-evictions=%llu gpu-allocated-bytes=%llu buffer-offset-calls=%llu constant-cache-bytes=%llu constant-evictions=%llu prepared-view-hits=%llu prepared-view-misses=%llu",
-        (unsigned long long)presentations_,std::chrono::duration<double,std::milli>(admitted-began).count(),drawable_ms,
+      char message[1400];std::snprintf(message,sizeof(message),"gta4-metal-performance: present=%llu admission-ms=%.3f completion-wait-ms=%.3f drawable-ms=%.3f validate-ms=%.3f prepare-ms=%.3f encode-ms=%.3f last-gpu-ms=%.3f commands=%llu draws=%llu new-pipelines=%llu new-buffers=%llu new-textures=%llu upload-bytes=%llu binding-calls=%llu avoided-calls=%llu resident-bytes=%zu buffer-cache-bytes=%llu buffer-cache-peak=%llu buffer-evictions=%llu gpu-allocated-bytes=%llu buffer-offset-calls=%llu constant-cache-bytes=%llu constant-evictions=%llu prepared-view-hits=%llu prepared-view-misses=%llu",
+        (unsigned long long)presentations_,std::chrono::duration<double,std::milli>(admitted-began).count(),last_completion_wait_ms_,drawable_ms,
         t.validation_ms,t.preparation_ms,t.encoding_ms,last_gpu_ms_,(unsigned long long)t.commands,(unsigned long long)t.draws,
         (unsigned long long)t.pipelines_created,(unsigned long long)t.buffers_created,(unsigned long long)t.textures_created,
         (unsigned long long)t.uploaded_bytes,(unsigned long long)(e.state_calls+e.buffer_calls+e.texture_calls+e.sampler_calls),
@@ -186,7 +188,12 @@ class Backend final:public render::FrameBackend {
     // owners for the content journal, but release CPU captures after encoding
     // so their arena pages can be reused by the next frontend batch. Only an
     // explicitly profiled submission needs the full plan for pass attribution.
-    auto surfaces=plan->surfaces;
+    // Reuse the bounded surface-owner vector's high-water capacity. The old
+    // frame plan is intentionally released after encoding so upload arenas can
+    // recycle; retaining only its surface owners keeps GPU allocations alive
+    // without allocating a fresh vector on every submission.
+    auto surfaces=std::move(reusable_surfaces_);
+    surfaces.assign(plan->surfaces.begin(),plan->surfaces.end());
     pending_.push_back({std::move(receipt),profile_gpu?std::move(plan):nullptr,std::move(surfaces),
                        present,timing.render_passes,timing.image_copies});
     error.clear();return true;
@@ -254,7 +261,16 @@ class Backend final:public render::FrameBackend {
   }
   bool FinishOldest(std::string& error) {
     auto submitted=std::move(pending_.front());pending_.pop_front();
+    const auto wait_started=std::chrono::steady_clock::now();
     const bool okay=submitted.receipt.Wait(error);
+    last_completion_wait_ms_+=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-wait_started).count();
+    // Completion is the lifetime boundary: only now may the surface owners
+    // be released. Keep the largest vector capacity for the next submission.
+    if(submitted.surfaces.capacity()>reusable_surfaces_.capacity()) {
+      reusable_surfaces_.clear();
+      reusable_surfaces_.swap(submitted.surfaces);
+    }
     if(okay&&!theft4_retail_mode()) {
       if(submitted.present&&gpu_sample_count_%60==0) {
         char context[256];std::snprintf(context,sizeof(context),"gta4-metal-device-context: thermal-state=%ld low-power=%d",
@@ -334,7 +350,7 @@ class Backend final:public render::FrameBackend {
   std::string libraries_,failure_;
   uint32_t maximum_;
   void (*diagnostic_)(const char*)=nullptr;
-  uint64_t presentations_=0;double last_gpu_ms_=0;
+  uint64_t presentations_=0;double last_gpu_ms_=0,last_completion_wait_ms_=0;
   uint32_t slow_submissions_=0;
   std::chrono::steady_clock::time_point last_slow_submission_{};
   std::array<double,60> gpu_samples_{};size_t gpu_sample_count_=0;
@@ -345,6 +361,7 @@ class Backend final:public render::FrameBackend {
   std::unique_ptr<Renderer> renderer_;
   std::unique_ptr<FrameAdapter> adapter_;
   std::deque<Submitted> pending_;
+  std::vector<std::shared_ptr<const render::Surface>> reusable_surfaces_;
 };
 }
 std::unique_ptr<render::FrameBackend> CreateFrameBackend(
