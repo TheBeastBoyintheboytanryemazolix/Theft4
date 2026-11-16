@@ -66,6 +66,19 @@ static bool DecodeNativeBcMipChain(
   };
   decoded.clear();decoded_mips.clear();
   decoded_mips.reserve(source_mips.size());
+  // Size the complete RGBA mip chain before decoding. Repeated resize() calls
+  // otherwise grow/copy the output vector once per mip on the A16 CPU.
+  size_t total_decoded_bytes=0;
+  for(const auto& mip:source_mips) {
+    if(!mip.width||!mip.height||!mip.depth||!mip.layer_count)return false;
+    size_t pixels=0,slices=0,bytes=0;
+    if(!multiply(size_t(mip.width),size_t(mip.height),pixels)||
+       !multiply(size_t(mip.depth),size_t(mip.layer_count),slices)||
+       !multiply(pixels,slices,pixels)||!multiply(pixels,size_t(4),bytes)||
+       bytes>kLimit-total_decoded_bytes)return false;
+    total_decoded_bytes+=bytes;
+  }
+  decoded.reserve(total_decoded_bytes);
   for(const auto& mip:source_mips) {
     if(!mip.width||!mip.height||!mip.depth||!mip.layer_count)return false;
     const size_t row_texels=mip.buffer_row_length?mip.buffer_row_length:mip.width;
