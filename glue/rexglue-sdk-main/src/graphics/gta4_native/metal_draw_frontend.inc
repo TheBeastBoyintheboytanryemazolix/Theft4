@@ -108,7 +108,18 @@ static bool DecodeNativeBcMipChain(
 
 void Gta4NativeGraphicsSystem::NativeMetalFrameState::CompleteBcPreload() {
   if(!pending_bc_preload)return;
+  const auto wait_started=std::chrono::steady_clock::now();
   if(bc_preparation_task)bc_preparation_task->Wait();
+  const double wait_ms=std::chrono::duration<double,std::milli>(
+      std::chrono::steady_clock::now()-wait_started).count();
+  char message[384];
+  std::snprintf(message,sizeof(message),
+      "gta4-bc-preload: generation=%llu format=%u source-bytes=%zu decoded-bytes=%zu decode-ms=%.3f wait-ms=%.3f success=%d",
+      (unsigned long long)pending_bc_preload->resource->generation,
+      unsigned(pending_bc_preload->format),pending_bc_preload->resource->payload.size(),
+      pending_bc_preload->decoded.size(),pending_bc_preload->decode_ms,wait_ms,
+      int(pending_bc_preload->succeeded));
+  Theft4QueueMetalDiagnostic(message);
   if(pending_bc_preload->succeeded)ready_bc_preload=std::move(pending_bc_preload);
   else pending_bc_preload.reset();
 }
@@ -130,6 +141,7 @@ void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
   pending_bc_preload=job;
   if(!bc_preparation_task->Start(job.get(),[](void* raw) {
     auto& work=*static_cast<BcPreloadJob*>(raw);
+    const auto decode_started=std::chrono::steady_clock::now();
     try {
       std::vector<theft4::render::source::TextureUploadMip> source_mips;
       source_mips.reserve(work.resource->mip_levels.size());
@@ -141,6 +153,8 @@ void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
     } catch(...) {
       work.succeeded=false;work.decoded.clear();work.mips.clear();
     }
+    work.decode_ms=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-decode_started).count();
   }))pending_bc_preload.reset();
 }
 
@@ -209,8 +223,17 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
             mips=preloaded_bc->mips;
           } else {
             std::vector<r::source::TextureUploadMip> decoded_mips;
+            const auto decode_started=std::chrono::steady_clock::now();
             if(!DecodeNativeBcMipChain(format,payload,mips,bc_fallback_payload,decoded_mips))
               return reject("Metal BC1/BC2/BC3 CPU fallback decode failed");
+            const double decode_ms=std::chrono::duration<double,std::milli>(
+                std::chrono::steady_clock::now()-decode_started).count();
+            char message[320];
+            std::snprintf(message,sizeof(message),
+                "gta4-bc-sync-decode: generation=%llu format=%u source-bytes=%zu decoded-bytes=%zu decode-ms=%.3f",
+                (unsigned long long)resource->generation,unsigned(format),payload.size(),
+                bc_fallback_payload.size(),decode_ms);
+            Theft4QueueMetalDiagnostic(message);
             payload=bc_fallback_payload;
             mips=std::move(decoded_mips);
           }
