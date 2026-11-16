@@ -25,6 +25,12 @@
 #include <unordered_set>
 #include <vector>
 
+#ifdef THEFT4_DIRECT_METAL_BACKEND
+extern "C" {
+#include "libavcodec/texturedsp.h"
+}
+#endif
+
 #if defined(__APPLE__) && defined(__MACH__)
 #include <pthread.h>
 #endif
