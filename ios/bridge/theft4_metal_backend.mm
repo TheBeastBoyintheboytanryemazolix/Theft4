@@ -206,6 +206,9 @@ class Backend final:public render::FrameBackend {
       std::string completion_error;
       FinishOldest(completion_error);
     }
+    // Drain is a hard lifetime boundary (readback/shutdown); do not keep
+    // completed frame surfaces alive merely to preserve vector capacity.
+    reusable_surfaces_.clear();
     if(adapter_)adapter_->FlushPipelineCache();
     return Healthy(error);
   }
