@@ -43,96 +43,67 @@ static bool DecodeNativeBcMipChain(
     std::vector<uint8_t>& decoded,
     std::vector<theft4::render::source::TextureUploadMip>& decoded_mips) {
   using Mip = theft4::render::source::TextureUploadMip;
-  const bool bc1 = format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-  const bool bc2 = format == VK_FORMAT_BC2_UNORM_BLOCK;
-  const bool bc3 = format == VK_FORMAT_BC3_UNORM_BLOCK;
-  if (!bc1 && !bc2 && !bc3) return false;
-  constexpr size_t kLimit = 64u * 1024u * 1024u;
-  const size_t block_bytes = bc1 ? 8u : 16u;
-  const auto expand565 = [](uint16_t c) {
-    const uint8_t r = uint8_t((c >> 11) & 31), g = uint8_t((c >> 5) & 63), b = uint8_t(c & 31);
-    return std::array<uint8_t, 4>{uint8_t((r << 3) | (r >> 2)),
-      uint8_t((g << 2) | (g >> 4)), uint8_t((b << 3) | (b >> 2)), 255};
+  size_t block_bytes=0;
+  int (*decode_block)(uint8_t*,ptrdiff_t,const uint8_t*)=nullptr;
+  switch(format) {
+    case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:block_bytes=8;break;
+    case VK_FORMAT_BC2_UNORM_BLOCK:case VK_FORMAT_BC3_UNORM_BLOCK:block_bytes=16;break;
+    default:return false;
+  }
+  TextureDSPContext dsp{};
+  ff_texturedsp_init(&dsp);
+  switch(format) {
+    case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:decode_block=dsp.dxt1a_block;break;
+    case VK_FORMAT_BC2_UNORM_BLOCK:decode_block=dsp.dxt3_block;break;
+    case VK_FORMAT_BC3_UNORM_BLOCK:decode_block=dsp.dxt5_block;break;
+    default:return false;
+  }
+  if(!decode_block)return false;
+  constexpr size_t kLimit=64u*1024u*1024u;
+  const auto multiply=[](size_t a,size_t b,size_t& out) {
+    if(a&&b>SIZE_MAX/a)return false;
+    out=a*b;return true;
   };
-  const auto decode_color = [&](const uint8_t* block, bool force_four,
-                                std::array<std::array<uint8_t,4>,4>& colors) {
-    const uint16_t c0 = uint16_t(block[0] | (uint16_t(block[1]) << 8));
-    const uint16_t c1 = uint16_t(block[2] | (uint16_t(block[3]) << 8));
-    colors[0] = expand565(c0); colors[1] = expand565(c1);
-    for (size_t k=0;k<3;++k) {
-      if (force_four || c0 > c1) {
-        colors[2][k] = uint8_t((2u*colors[0][k] + colors[1][k] + 1u)/3u);
-        colors[3][k] = uint8_t((colors[0][k] + 2u*colors[1][k] + 1u)/3u);
-      } else colors[2][k] = uint8_t((uint16_t(colors[0][k])+colors[1][k])/2u);
-    }
-    colors[2][3] = 255;
-    colors[3][3] = (force_four || c0 > c1) ? 255 : 0;
-  };
-  for (const auto& mip : source_mips) {
-    if (!mip.width || !mip.height || !mip.depth || !mip.layer_count) return false;
-    const size_t blocks_x = (size_t(mip.buffer_row_length ? mip.buffer_row_length : mip.width) + 3u)/4u;
-    const size_t blocks_y = (size_t(mip.buffer_image_height ? mip.buffer_image_height : mip.height) + 3u)/4u;
-    const size_t row_pitch = blocks_x * block_bytes;
-    const size_t slice_pitch = row_pitch * blocks_y;
-    const size_t slices = size_t(mip.depth) * mip.layer_count;
-    if (!blocks_x || !blocks_y || slices > SIZE_MAX / std::max<size_t>(slice_pitch,1)) return false;
-    const size_t required = slice_pitch * slices;
-    if (mip.payload_offset > source.size() || required > source.size()-mip.payload_offset ||
-        (mip.payload_size && required > mip.payload_size)) return false;
-    const size_t out_offset = decoded.size();
-    const size_t pixels = size_t(mip.width)*mip.height*slices;
-    if (pixels > (kLimit-decoded.size())/4u) return false;
-    decoded.resize(out_offset + pixels*4u);
-    for (size_t slice=0;slice<slices;++slice) {
+  decoded.clear();decoded_mips.clear();
+  decoded_mips.reserve(source_mips.size());
+  for(const auto& mip:source_mips) {
+    if(!mip.width||!mip.height||!mip.depth||!mip.layer_count)return false;
+    const size_t row_texels=mip.buffer_row_length?mip.buffer_row_length:mip.width;
+    const size_t image_rows=mip.buffer_image_height?mip.buffer_image_height:mip.height;
+    const size_t blocks_x=(row_texels+3u)/4u,blocks_y=(image_rows+3u)/4u;
+    size_t row_pitch=0,slice_pitch=0,slices=0,required=0,pixels=0,output_bytes=0;
+    if(!blocks_x||!blocks_y||!multiply(blocks_x,block_bytes,row_pitch)||
+       !multiply(row_pitch,blocks_y,slice_pitch)||
+       !multiply(size_t(mip.depth),size_t(mip.layer_count),slices)||
+       !multiply(slice_pitch,slices,required)||
+       !multiply(size_t(mip.width),size_t(mip.height),pixels)||
+       !multiply(pixels,slices,pixels)||!multiply(pixels,size_t(4),output_bytes))return false;
+    if(mip.payload_offset>source.size()||required>source.size()-mip.payload_offset||
+       (mip.payload_size&&required>mip.payload_size))return false;
+    if(decoded.size()>kLimit||output_bytes>kLimit-decoded.size())return false;
+    const size_t out_offset=decoded.size();
+    decoded.resize(out_offset+output_bytes);
+    const size_t actual_blocks_x=(size_t(mip.width)+3u)/4u;
+    const size_t actual_blocks_y=(size_t(mip.height)+3u)/4u;
+    const size_t pixels_per_slice=size_t(mip.width)*mip.height;
+    for(size_t slice=0;slice<slices;++slice) {
       const uint8_t* slice_data=source.data()+mip.payload_offset+slice*slice_pitch;
-      uint8_t* dst=decoded.data()+out_offset+slice*size_t(mip.width)*mip.height*4u;
-      const size_t actual_blocks_x=(size_t(mip.width)+3u)/4u;
-      const size_t actual_blocks_y=(size_t(mip.height)+3u)/4u;
-      for(size_t by=0;by<actual_blocks_y;++by) for(size_t bx=0;bx<actual_blocks_x;++bx) {
+      uint8_t* dst=decoded.data()+out_offset+slice*pixels_per_slice*4u;
+      for(size_t by=0;by<actual_blocks_y;++by)for(size_t bx=0;bx<actual_blocks_x;++bx) {
         const uint8_t* block=slice_data+by*row_pitch+bx*block_bytes;
-        const uint8_t* color_block=block+(bc1?0:8);
-        std::array<std::array<uint8_t,4>,4> colors{};
-        decode_color(color_block,bc2||bc3,colors);
-        const uint32_t color_indices=uint32_t(color_block[4])|
-          (uint32_t(color_block[5])<<8)|(uint32_t(color_block[6])<<16)|(uint32_t(color_block[7])<<24);
-        uint64_t alpha_bits=0; uint8_t alpha0=255,alpha1=255;
-        if(bc2) for(size_t i=0;i<8;++i) alpha_bits |= uint64_t(block[i])<<(8u*i);
-        if(bc3) {
-          alpha0=block[0];alpha1=block[1];
-          for(size_t i=0;i<6;++i) alpha_bits |= uint64_t(block[2+i])<<(8u*i);
-        }
-        std::array<uint8_t,8> alpha_table{};
-        if(bc3) {
-          alpha_table[0]=alpha0;alpha_table[1]=alpha1;
-          if(alpha0>alpha1) for(size_t i=1;i<=6;++i)
-            alpha_table[i+1]=uint8_t(((7u-i)*alpha0+i*alpha1+3u)/7u);
-          else {
-            for(size_t i=1;i<=4;++i) alpha_table[i+1]=uint8_t(((5u-i)*alpha0+i*alpha1+2u)/5u);
-            alpha_table[6]=0;alpha_table[7]=255;
-          }
-        }
-        for(size_t py=0;py<4;++py) for(size_t px=0;px<4;++px) {
-          const size_t x=bx*4u+px,y=by*4u+py;
-          if(x>=mip.width||y>=mip.height) continue;
-          const size_t p=y*size_t(mip.width)+x;
-          const unsigned ci=(color_indices>>(2u*(py*4u+px)))&3u;
-          auto rgba=colors[ci];
-          if(bc2) {
-            const unsigned a=unsigned((alpha_bits>>(4u*(py*4u+px)))&15u);
-            rgba[3]=uint8_t(a*17u);
-          } else if(bc3) {
-            const unsigned ai=unsigned((alpha_bits>>(3u*(py*4u+px)))&7u);
-            rgba[3]=alpha_table[ai];
-          }
-          std::memcpy(dst+p*4u,rgba.data(),4u);
+        uint8_t rgba[64];
+        decode_block(rgba,16,block);
+        const size_t x=bx*4u,y=by*4u;
+        const size_t copy_width=std::min<size_t>(4u,size_t(mip.width)-x);
+        for(size_t py=0;py<4u&&y+py<mip.height;++py) {
+          std::memcpy(dst+((y+py)*size_t(mip.width)+x)*4u,rgba+py*16u,copy_width*4u);
         }
       }
     }
     decoded_mips.push_back(Mip{mip.level,mip.width,mip.height,mip.depth,
-      mip.base_array_layer,mip.layer_count,0,0,out_offset,pixels*4u});
-    if(decoded.size()>kLimit) return false;
+      mip.base_array_layer,mip.layer_count,0,0,out_offset,output_bytes});
   }
-  return !decoded.empty() && decoded_mips.size()==source_mips.size();
+  return !decoded.empty()&&decoded_mips.size()==source_mips.size();
 }
 
 void Gta4NativeGraphicsSystem::NativeMetalFrameState::CompleteBcPreload() {
