@@ -189,7 +189,7 @@ REXCVAR_DEFINE_DOUBLE(gta4_lod_selection_distance_scale, 1.5, "GTA IV/Graphics/L
     .range(1.0, 2.5)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(gta4_draw_distance_scale, 0.40, "GTA IV/Graphics/LOD",
-                      "Multiplier applied through GTA IV's built-in world-distance input")
+                      "Multiplier applied through GTA IV's built-in world-distance input (0.40 minimum)")
     .range(0.40, 4.0);
 REXCVAR_DEFINE_UINT32(gta4_drawable_reference_limit, 13000, "GTA IV/Graphics/LOD",
                       "Drawable-reference capacity used by extended draw distances")
