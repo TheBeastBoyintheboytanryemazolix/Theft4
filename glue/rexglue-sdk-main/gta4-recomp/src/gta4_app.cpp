@@ -188,9 +188,9 @@ REXCVAR_DEFINE_DOUBLE(gta4_lod_selection_distance_scale, 1.5, "GTA IV/Graphics/L
                       "Scale the title's model-LOD selection input to choose simpler resident meshes sooner")
     .range(1.0, 2.5)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_DOUBLE(gta4_draw_distance_scale, 0.85, "GTA IV/Graphics/LOD",
+REXCVAR_DEFINE_DOUBLE(gta4_draw_distance_scale, 0.40, "GTA IV/Graphics/LOD",
                       "Multiplier applied through GTA IV's built-in world-distance input")
-    .range(0.70, 4.0);
+    .range(0.40, 4.0);
 REXCVAR_DEFINE_UINT32(gta4_drawable_reference_limit, 13000, "GTA IV/Graphics/LOD",
                       "Drawable-reference capacity used by extended draw distances")
     .range(13000, 40000)
