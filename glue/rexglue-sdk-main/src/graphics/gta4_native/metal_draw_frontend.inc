@@ -1,7 +1,7 @@
-const std::shared_ptr<const theft4::render::Bytes>& Gta4NativeGraphicsSystem::PrepareNativeMetalVertexPayload(
+const std::shared_ptr<const ::theft4::render::Bytes>& Gta4NativeGraphicsSystem::PrepareNativeMetalVertexPayload(
     NativeResourceView<NativeBufferResource> resource,const NativePipelineState& state,
     uint32_t stream,const NativeMetalVertexConversion* conversion) {
-  static const std::shared_ptr<const theft4::render::Bytes> empty;
+  static const std::shared_ptr<const ::theft4::render::Bytes> empty;
   if(!resource||resource->payload.empty()||!state.vertex_declaration_resource||
       !state.vertex_shader_resource||stream>=kVertexStreamCount||!state.vertex_streams[stream].stride||
       state.vertex_streams[stream].offset>=resource->payload.size())return empty;
@@ -26,23 +26,23 @@ const std::shared_ptr<const theft4::render::Bytes>& Gta4NativeGraphicsSystem::Pr
   return converted->metal_owner;
 }
 
-const std::shared_ptr<const theft4::render::Bytes>& Gta4NativeGraphicsSystem::PrepareNativeMetalIndexPayload(
+const std::shared_ptr<const ::theft4::render::Bytes>& Gta4NativeGraphicsSystem::PrepareNativeMetalIndexPayload(
     const NativeBufferResource* resource,bool index32) {
   auto& owner=resource->metal_index_owners[index32];
   if(owner)return owner;
   PrepareConvertedIndexPayload(resource,index32);
   auto& host=index32?resource->host_index32_payload:resource->host_index16_payload;
-  owner=PublishNativeGeometryPayload<theft4::render::Bytes>(host,++next_native_metal_allocation_,{2,index32});
+  owner=PublishNativeGeometryPayload<::theft4::render::Bytes>(host,++next_native_metal_allocation_,{2,index32});
   return owner;
 }
 
 
 static bool DecodeNativeBcMipChain(
     VkFormat format, std::span<const uint8_t> source,
-    const std::vector<theft4::render::source::TextureUploadMip>& source_mips,
+    const std::vector<::theft4::render::source::TextureUploadMip>& source_mips,
     std::vector<uint8_t>& decoded,
-    std::vector<theft4::render::source::TextureUploadMip>& decoded_mips) {
-  using Mip = theft4::render::source::TextureUploadMip;
+    std::vector<::theft4::render::source::TextureUploadMip>& decoded_mips) {
+  using Mip = ::theft4::render::source::TextureUploadMip;
   size_t block_bytes=0;
   int (*decode_block)(uint8_t*,ptrdiff_t,const uint8_t*)=nullptr;
   switch(format) {
@@ -156,7 +156,7 @@ void Gta4NativeGraphicsSystem::NativeMetalFrameState::StartBcPreload(
     auto& work=*static_cast<BcPreloadJob*>(raw);
     const auto decode_started=std::chrono::steady_clock::now();
     try {
-      std::vector<theft4::render::source::TextureUploadMip> source_mips;
+      std::vector<::theft4::render::source::TextureUploadMip> source_mips;
       source_mips.reserve(work.resource->mip_levels.size());
       for(const auto& mip:work.resource->mip_levels)
         source_mips.push_back({mip.level,mip.width,mip.height,mip.depth,mip.base_array_layer,
@@ -183,7 +183,7 @@ Gta4NativeGraphicsSystem::NativeMetalFrameState::TakeBcPreload(uint64_t generati
 
 bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
     NativeResourceView<NativeTextureResource> resource_view,const xenos::xe_gpu_texture_fetch_t& fetch,
-    const NativeMetalFrameState& frame_state,theft4::render::HostFetch& output,std::string& error) {
+    const NativeMetalFrameState& frame_state,::theft4::render::HostFetch& output,std::string& error) {
   namespace r=theft4::render;
   const auto reject=[&](const char* reason){error=reason;return false;};
   if(!native_metal_frame_||!frame_backend_)return reject("Metal fetch CPU state unavailable");
@@ -305,7 +305,7 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
 // immutable CPU snapshots; it never creates or reads Vulkan driver objects.
 bool Gta4NativeGraphicsSystem::PrepareNativeMetalDraw(
     const NativeCommand& command,const NativeRenderingTarget& target,
-    const NativeMetalFrameState& frame_state,theft4::render::FrameDraw& output,std::string& error) {
+    const NativeMetalFrameState& frame_state,::theft4::render::FrameDraw& output,std::string& error) {
   namespace r=theft4::render;
   const auto reject=[&](const char* reason){error=reason;return false;};
   if(!frame_backend_ || !native_metal_frame_ || !command.pipeline_state || !command.shader_state)
