@@ -256,7 +256,15 @@ bool Gta4NativeGraphicsSystem::PrepareNativeMetalFetch(
             format==VK_FORMAT_BC4_UNORM_BLOCK||format==VK_FORMAT_BC4_SNORM_BLOCK||format==VK_FORMAT_BC5_UNORM_BLOCK||format==VK_FORMAT_BC5_SNORM_BLOCK))
           return reject("Metal sampled BC format unsupported by device");
         PreparedNativeTextureDescription description;
-        NativeTextureCapabilities tcaps{caps.max_image_dimension_2d,true,true,
+        // Limit every guest texture to half its original linear dimensions. The
+        // native texture preparation path applies this cap while preserving the
+        // texture's aspect ratio, array/depth shape, and available mip chain.
+        const uint32_t source_texture_max_dimension =
+            std::max(resource->info.width, resource->info.height);
+        const uint32_t half_resolution_limit =
+            std::max(1u, source_texture_max_dimension / 2u);
+        NativeTextureCapabilities tcaps{
+            std::min(caps.max_image_dimension_2d, half_resolution_limit), true, true,
             VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_TRANSFER_DST_BIT};
         if(!PrepareNativeTextureDescription(NativeResourceView<NativeTextureResource>(resource),format,nullptr,tcaps,description,error,&frame_state.reflections,&frame_state.virtuals))return false;
         auto image=std::make_shared<r::Image>();const auto& m=*description.image;
