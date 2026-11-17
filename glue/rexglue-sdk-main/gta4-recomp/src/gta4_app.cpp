@@ -184,9 +184,9 @@ REXCVAR_DEFINE_DOUBLE(gta4_fsr1_sharpness_reduction, 0.2, "GTA IV/Graphics/Upsca
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_BOOL(gta4_force_highest_lod, false, "GTA IV/Graphics/LOD",
                     "Prefer the highest resident model LOD regardless of distance");
-REXCVAR_DEFINE_DOUBLE(gta4_lod_selection_distance_scale, 1.5, "GTA IV/Graphics/LOD",
-                      "Scale the title's model-LOD selection input to choose simpler resident meshes sooner")
-    .range(1.0, 2.5)
+REXCVAR_DEFINE_DOUBLE(gta4_lod_selection_distance_scale, 4.0, "GTA IV/Graphics/LOD",
+                      "Aggressively prefer simpler resident model LODs across drawable objects")
+    .range(1.0, 4.0)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(gta4_draw_distance_scale, 0.40, "GTA IV/Graphics/LOD",
                       "Multiplier applied through GTA IV's built-in world-distance input (0.40 minimum)")
