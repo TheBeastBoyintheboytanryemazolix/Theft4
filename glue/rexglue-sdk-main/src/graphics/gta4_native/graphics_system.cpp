@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -25,7 +24,6 @@
 #include <random>
 #include <set>
 #include <sstream>
-#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -83,8 +81,6 @@ extern "C" {
 #include <rex/ui/vulkan/submission_tracker.h>
 #include <rex/ui/vulkan/util.h>
 #include <rex/ui/windowed_app_context.h>
-
-#include "../../../gta4-recomp/src/gta4_frame_limiter.h"
 
 #include <shader/shader_cache.h>
 #include <shader_overrides/shader_override_cache.h>
@@ -33516,21 +33512,6 @@ bool Gta4NativeGraphicsSystem::PublishFrame(
   });
 #endif
   SetNativeWorkerDiagnosticPhase(NativeWorkerDiagnosticPhase::kPublishSetup);
-  if (present.device) {
-    const uint32_t configured_limit = rex::cvar::Query<uint32_t>("gta4_frame_limit");
-    const uint32_t frame_limit =
-        configured_limit == 30 || configured_limit == 60 ? configured_limit : 0;
-    thread_local gta4::frame_limiter::State frame_limiter_state{};
-    const auto now = std::chrono::steady_clock::now();
-    const int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        now.time_since_epoch()).count();
-    const auto pacing = gta4::frame_limiter::Plan(frame_limiter_state, frame_limit, now_ns);
-    frame_limiter_state = pacing.next_state;
-    if (pacing.should_wait(now_ns)) {
-      std::this_thread::sleep_until(std::chrono::steady_clock::time_point(
-          std::chrono::nanoseconds(pacing.wait_until_ns)));
-    }
-  }
   const bool profile_capture_active = rex::diagnostics::IsEnabled(rex::diagnostics::Category::kNativeProfiler) &&
       !native_gpu_profile_state_.capture_complete && !native_gpu_profile_state_.export_started &&
       (REXCVAR_GET(gta4_profile_native_autostart) || native_gpu_profile_state_.capture_armed ||
