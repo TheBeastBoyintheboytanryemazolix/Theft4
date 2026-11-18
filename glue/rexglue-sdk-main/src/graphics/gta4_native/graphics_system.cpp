@@ -1,4 +1,7 @@
 #include "graphics_system.h"
+#ifdef THEFT4_DIRECT_METAL_BACKEND
+#include "../../../gta4-recomp/src/gta4_frame_limiter.h"
+#endif
 #include "native_metal_vertex_conversion.h"
 #include "native_shared_geometry_payload.h"
 #ifdef THEFT4_DIRECT_METAL_BACKEND
@@ -36,6 +39,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cfenv>
 #include <cstdio>
@@ -49,6 +53,7 @@
 #include <random>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -36338,6 +36343,23 @@ bool Gta4NativeGraphicsSystem::PublishFrame(
     const PresentCommand& present,
     const std::shared_ptr<const NativeTextureResource>& present_source,
     const std::shared_ptr<const EnvironmentalDataV1>& environmental_data) {
+#ifdef THEFT4_DIRECT_METAL_BACKEND
+  if (present.device) {
+    const uint32_t configured_limit = rex::cvar::Query<uint32_t>("gta4_frame_limit");
+    const uint32_t frame_limit = configured_limit == 30 || configured_limit == 60
+        ? configured_limit : 0;
+    thread_local gta4::frame_limiter::State limiter_state{};
+    const auto now = std::chrono::steady_clock::now();
+    const int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        now.time_since_epoch()).count();
+    const auto pacing = gta4::frame_limiter::Plan(limiter_state, frame_limit, now_ns);
+    limiter_state = pacing.next_state;
+    if (pacing.should_wait(now_ns)) {
+      std::this_thread::sleep_until(std::chrono::steady_clock::time_point(
+          std::chrono::nanoseconds(pacing.wait_until_ns)));
+    }
+  }
+#endif
   // Capture the common publication boundary before choosing the graphics API.
   // The disabled scope makes no task accounting calls or ring writes.
   if (!present.device) ++light_internal_flushes_;

@@ -256,6 +256,12 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
 
     NSMutableArray<UIView *> *graphicsRows = [NSMutableArray new];
 #ifdef THEFT4_DIRECT_METAL_DEFAULT
+    _frameRateLimit = ChoiceControl(@[@"30 FPS", @"60 FPS"], @"frameRateLimit",
+        @"Frame rate limit", @"Caps actual game-frame publication to 30 or 60 frames per second. Applies on the next game launch.");
+    _frameRateLimit.selectedSegmentIndex = 0;
+    [graphicsRows addObject:[self choice:@"FRAME RATE LIMIT"
+        detail:@"30 FPS targets 33.3 ms per frame. 60 FPS targets 16.7 ms per frame. The device and scene must be fast enough to sustain the selected rate."
+        control:_frameRateLimit]];
     _sharpening = [UISlider new];
     _sharpening.minimumValue = 0;
     _sharpening.maximumValue = 100;

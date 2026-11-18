@@ -522,6 +522,9 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     UISegmentedControl *_modelDetail;
     UISegmentedControl *_reflectionQuality;
     UISegmentedControl *_antiAliasing;
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+    UISegmentedControl *_frameRateLimit;
+#endif
     UISwitch *_performanceCapture;
 #ifdef THEFT4_BC_TEXTURE_COMPATIBILITY
     UISwitch *_astcConversion;
@@ -744,6 +747,9 @@ static void bootEvent(void *context, const char *event) {
         @"Theft4ModelDetail": @1,
         @"Theft4ReflectionQuality": @0,
         @"Theft4AntiAliasing": @0,
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+        @"Theft4FrameRateLimit": @30,
+#endif
     }];
 #ifdef THEFT4_BC_TEXTURE_COMPATIBILITY
     [NSUserDefaults.standardUserDefaults registerDefaults:@{
@@ -818,6 +824,9 @@ static void bootEvent(void *context, const char *event) {
     _modelDetail = _bringupOverlay.modelDetail;
     _reflectionQuality = _bringupOverlay.reflectionQuality;
     _antiAliasing = _bringupOverlay.antiAliasing;
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+    _frameRateLimit = _bringupOverlay.frameRateLimit;
+#endif
     _performanceCapture = _bringupOverlay.performanceCapture;
     _bringupOverlay.skipIntro.on = ![NSUserDefaults.standardUserDefaults objectForKey:@"Theft4SkipIntro"] ||
         [NSUserDefaults.standardUserDefaults boolForKey:@"Theft4SkipIntro"];
@@ -890,6 +899,12 @@ static void bootEvent(void *context, const char *event) {
     NSArray<NSString *> *graphicsKeys = @[
         @"Theft4ShadowQuality", @"Theft4DrawDistance", @"Theft4ModelDetail",
         @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
+ #ifdef THEFT4_DIRECT_METAL_DEFAULT
+    _frameRateLimit.selectedSegmentIndex =
+        [NSUserDefaults.standardUserDefaults integerForKey:@"Theft4FrameRateLimit"] == 60 ? 1 : 0;
+    [_frameRateLimit addTarget:self action:@selector(displaySettingsChanged:)
+        forControlEvents:UIControlEventValueChanged];
+ #endif
     for (NSUInteger i = 0; i < graphicsChoices.count; ++i) {
         UISegmentedControl *choice = graphicsChoices[i];
         choice.selectedSegmentIndex = MAX(0, MIN(choice.numberOfSegments - 1,
@@ -2036,6 +2051,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         @"Theft4ModelDetail", @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
     for (NSUInteger i = 0; i < choices.count; ++i)
         [NSUserDefaults.standardUserDefaults setInteger:choices[i].selectedSegmentIndex forKey:keys[i]];
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+    [NSUserDefaults.standardUserDefaults setInteger:(_frameRateLimit.selectedSegmentIndex == 1 ? 60 : 30)
+        forKey:@"Theft4FrameRateLimit"];
+#endif
     if (_bringupOverlay.renderResolution) {
         [NSUserDefaults.standardUserDefaults setInteger:_bringupOverlay.renderHeight forKey:@"Theft4LabRenderHeight"];
         [NSUserDefaults.standardUserDefaults setBool:_bringupOverlay.fsrUpscaling.on forKey:@"Theft4LabFSREnabled"];
@@ -3085,6 +3104,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         const char *distancePresets[] = {"0.70", "1", "2", "3"};
         const char *reflectionPresets[] = {"original", "1080p", "full"};
         const char *antiAliasingPresets[] = {"off", "fxaa", "smaa"};
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+        setenv("THEFT4_FRAME_LIMIT", _frameRateLimit.selectedSegmentIndex == 1 ? "60" : "30", 1);
+#endif
         setenv("THEFT4_SHADOW_QUALITY", shadowPresets[_shadowQuality.selectedSegmentIndex], 1);
         setenv("THEFT4_DRAW_DISTANCE", distancePresets[_drawDistance.selectedSegmentIndex], 1);
         setenv("THEFT4_FORCE_HIGHEST_LOD", _modelDetail.selectedSegmentIndex == 2 ? "1" : "0", 1);

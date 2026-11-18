@@ -27,6 +27,9 @@
 @property(nonatomic, readonly) UISegmentedControl *modelDetail;
 @property(nonatomic, readonly) UISegmentedControl *reflectionQuality;
 @property(nonatomic, readonly) UISegmentedControl *antiAliasing;
+#ifdef THEFT4_DIRECT_METAL_DEFAULT
+@property(nonatomic, readonly) UISegmentedControl *frameRateLimit;
+#endif
 @property(nonatomic, readonly) UISwitch *performanceCapture;
 @property(nonatomic, readonly) UISwitch *skipIntro;
 @property(nonatomic, readonly) UISwitch *customTimeCycle;
