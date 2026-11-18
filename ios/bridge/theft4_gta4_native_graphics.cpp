@@ -164,6 +164,10 @@ static void ApplyTheft4LaunchGraphicsCVars() {
   if (const char* fsr = std::getenv("THEFT4_FSR_UPSCALING"))
     rex::cvar::SetFlagByName("gta4_native_upscaler",
                              std::strcmp(fsr, "1") == 0 ? "fsr1" : "native");
+  if (const char* frame_limit = std::getenv("THEFT4_FRAME_LIMIT")) {
+    if (std::strcmp(frame_limit, "30") == 0 || std::strcmp(frame_limit, "60") == 0)
+      rex::cvar::SetFlagByName("gta4_frame_limit", frame_limit);
+  }
 }
 
 // GTA4App owns the mutable anti-aliasing controller on desktop. The iOS shell

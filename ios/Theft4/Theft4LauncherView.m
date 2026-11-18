@@ -74,6 +74,7 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     UILabel *_masthead, *_edition, *_wordmark, *_sceneCaption, *_configuration;
     UILabel *_resolutionSummary, *_pageTitle, *_pageDetail, *_controllerHint;
     UILabel *_shadowMetrics, *_distanceMetrics, *_modelMetrics, *_reflectionMetrics, *_aaMetrics;
+    UISegmentedControl *_frameRateLimit;
     UIView *_topRule, *_bottomRule, *_navRule;
     UIScrollView *_scroll;
     UIStackView *_content, *_navigation;
@@ -225,6 +226,12 @@ static UISegmentedControl *ChoiceControl(NSArray<NSString *> *items, NSString *i
     }
 
     NSMutableArray<UIView *> *graphicsRows = [NSMutableArray new];
+    _frameRateLimit = ChoiceControl(@[@"30 FPS", @"60 FPS"], @"frameRateLimit",
+        @"Frame rate limit", @"Caps game frame production to the selected rate. Applies on the next game launch.");
+    _frameRateLimit.selectedSegmentIndex = 0;
+    [graphicsRows addObject:[self choice:@"FRAME RATE LIMIT"
+        detail:@"30 FPS targets 33.3 ms per frame. 60 FPS targets 16.7 ms. Actual performance still depends on the scene and device."
+        control:_frameRateLimit]];
     if (lab) {
         _renderResolution = ChoiceControl(@[@"540p", @"720p", @"900p", @"1080p", @"Native"], @"renderResolution",
             @"Render resolution", @"The internal scene resolution. Applies at the next game launch.");

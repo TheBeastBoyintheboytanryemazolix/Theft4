@@ -476,6 +476,7 @@ static BOOL Theft4InstallSaveExport(NSURL *selected, NSURL *support, NSURL *docu
     UISegmentedControl *_modelDetail;
     UISegmentedControl *_reflectionQuality;
     UISegmentedControl *_antiAliasing;
+    UISegmentedControl *_frameRateLimit;
     UISwitch *_performanceCapture;
     UISwitch *_constantReuse;
     UISwitch *_frameStageTiming;
@@ -626,6 +627,7 @@ static void bootEvent(void *context, const char *event) {
         @"Theft4ModelDetail": @1,
         @"Theft4ReflectionQuality": @0,
         @"Theft4AntiAliasing": @2,
+        @"Theft4FrameRateLimit": @30,
         @"Theft4Round1ConstantReuse": @YES,
         @"Theft4Round1FrameStageTiming": @YES
     }];
@@ -700,6 +702,7 @@ static void bootEvent(void *context, const char *event) {
     _modelDetail = _bringupOverlay.modelDetail;
     _reflectionQuality = _bringupOverlay.reflectionQuality;
     _antiAliasing = _bringupOverlay.antiAliasing;
+    _frameRateLimit = _bringupOverlay.frameRateLimit;
     _performanceCapture = _bringupOverlay.performanceCapture;
     _constantReuse = _bringupOverlay.constantReuse;
     _frameStageTiming = _bringupOverlay.frameStageTiming;
@@ -737,6 +740,10 @@ static void bootEvent(void *context, const char *event) {
         [choice addTarget:self action:@selector(displaySettingsChanged:)
             forControlEvents:UIControlEventValueChanged];
     }
+    _frameRateLimit.selectedSegmentIndex =
+        [NSUserDefaults.standardUserDefaults integerForKey:@"Theft4FrameRateLimit"] == 60 ? 1 : 0;
+    [_frameRateLimit addTarget:self action:@selector(displaySettingsChanged:)
+        forControlEvents:UIControlEventValueChanged];
     if (_bringupOverlay.renderResolution) {
         NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
         uint32_t height = theft4_lab_render_height((uint32_t)[defaults integerForKey:@"Theft4LabRenderHeight"]);
@@ -1465,6 +1472,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         @"Theft4ModelDetail", @"Theft4ReflectionQuality", @"Theft4AntiAliasing"];
     for (NSUInteger i = 0; i < choices.count; ++i)
         [NSUserDefaults.standardUserDefaults setInteger:choices[i].selectedSegmentIndex forKey:keys[i]];
+    [NSUserDefaults.standardUserDefaults setInteger:(_frameRateLimit.selectedSegmentIndex == 1 ? 60 : 30)
+        forKey:@"Theft4FrameRateLimit"];
     if (_bringupOverlay.renderResolution) {
         [NSUserDefaults.standardUserDefaults setInteger:_bringupOverlay.renderHeight forKey:@"Theft4LabRenderHeight"];
         [NSUserDefaults.standardUserDefaults setBool:_bringupOverlay.fsrUpscaling.on forKey:@"Theft4LabFSREnabled"];
@@ -2254,6 +2263,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // Apply the persisted launcher choice before the background runtime
         // reads and validates its native-renderer launch configuration.
         setenv("THEFT4_ANISOTROPY", _anisotropicFiltering.on ? "4x" : "1x", 1);
+        setenv("THEFT4_FRAME_LIMIT", _frameRateLimit.selectedSegmentIndex == 1 ? "60" : "30", 1);
         setenv("THEFT4_MOTION_BLUR", _motionBlur.on ? "1" : "0", 1);
         setenv("THEFT4_DEPTH_OF_FIELD", _depthOfField.on ? "1" : "0", 1);
         setenv("THEFT4_FSR_UPSCALING", _bringupOverlay.fsrUpscaling.on ? "1" : "0", 1);
@@ -2303,7 +2313,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         _motionBlur.enabled = NO;
         _depthOfField.enabled = NO;
         for (UISegmentedControl *choice in @[_shadowQuality, _drawDistance, _modelDetail,
-                                              _reflectionQuality, _antiAliasing])
+                                              _reflectionQuality, _antiAliasing, _frameRateLimit])
             choice.enabled = NO;
     }
     if (![self isSetupComplete]) {
